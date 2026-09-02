@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "//": "Turborepo runs tasks in strict env mode: a task only sees the variables declared in globalEnv or in its own `env`. Anything undeclared is stripped before the task process starts, which is silent — the task runs and falls back to whatever default the code has. TEST_DATABASE_URL and TEST_REDIS_URL are declared on `test:integration` for exactly that reason.",
   "globalDependencies": [".env", "tsconfig.base.json"],
   "globalEnv": ["NODE_ENV", "DATABASE_URL", "REDIS_URL", "FORGE_*", "OTEL_*", "NEXT_PUBLIC_*"],
   "tasks": {
@@ -21,7 +22,8 @@
     "test:integration": {
       "dependsOn": ["^build"],
       "cache": false,
-      "outputs": []
+      "outputs": [],
+      "env": ["TEST_DATABASE_URL", "TEST_REDIS_URL", "TEST_DB_NAME"]
     },
     "dev": {
       "cache": false,

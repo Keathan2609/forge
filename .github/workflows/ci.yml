@@ -82,18 +82,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
+    # Host ports deliberately match the local development stack (infra/docker/
+    # docker-compose.yml maps 5435 and 6381 so FORGE can run alongside an existing local
+    # PostgreSQL or Redis). Keeping CI on the same ports means the integration suites'
+    # own fallback defaults are correct here too, so a missing variable degrades to the
+    # right endpoint instead of a confusing one.
     services:
       postgres:
         image: postgres:17-alpine
         env:
+          # Disposable, CI-only. The suites truncate and recreate everything they touch.
           POSTGRES_USER: forge
           POSTGRES_PASSWORD: forge
+          # Created at first boot, which is the half of `pnpm test:setup` that CI needs;
+          # the other half of that script shells into a container named `forge-postgres`,
+          # which does not exist on a runner.
           POSTGRES_DB: forge_test
         ports:
-          - 5432:5432
+          - 5435:5432
         # Without a healthcheck the job races the database's first-boot initialisation.
         options: >-
-          --health-cmd "pg_isready -U forge"
+          --health-cmd "pg_isready -U forge -d forge_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -101,7 +110,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 6379:6379
+          - 6381:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
@@ -109,10 +118,15 @@ jobs:
           --health-retries 20
 
     env:
-      TEST_DATABASE_URL: postgresql://forge:forge@localhost:5432/forge_test?schema=public
-      TEST_REDIS_URL: redis://localhost:6379/1
-      DATABASE_URL: postgresql://forge:forge@localhost:5432/forge_test?schema=public
-      REDIS_URL: redis://localhost:6379
+      # What the integration suites read. These reach the test process only because
+      # `test:integration` declares them in turbo.json — Turborepo runs tasks in strict
+      # env mode and silently strips anything undeclared.
+      TEST_DATABASE_URL: postgresql://forge:forge@localhost:5435/forge_test?schema=public
+      TEST_REDIS_URL: redis://localhost:6381/1
+      # What `prisma migrate deploy` reads. Pointed at the same test database, so the
+      # schema the suites run against is the one migrations just produced.
+      DATABASE_URL: postgresql://forge:forge@localhost:5435/forge_test?schema=public
+      REDIS_URL: redis://localhost:6381
 
     steps:
       - uses: actions/checkout@v4
@@ -129,11 +143,36 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # `pnpm exec`, never `npx`: npx with no local binary downloads whatever the
+      # registry currently publishes, which is how a next-major release candidate once
+      # ended up running here.
       - name: Generate Prisma Client
         run: pnpm --filter @forge/database exec prisma generate
 
-      - name: Apply migrations
+      # The CI equivalent of `pnpm test:setup`. That script creates the database and
+      # applies migrations; the service container above already created it, so only the
+      # migration half applies on a runner.
+      - name: Apply migrations to the test database
         run: pnpm --filter @forge/database exec prisma migrate deploy
+
+      # A dependency-free reachability probe on both mapped ports. If a service port is
+      # ever remapped without updating the URLs above, this fails here with an obvious
+      # message instead of 90 seconds later inside a test suite.
+      - name: Verify services are reachable
+        run: |
+          node -e "
+          const net = require('net');
+          const check = (port, name) => new Promise((res, rej) => {
+            const s = net.connect(port, '127.0.0.1');
+            s.setTimeout(5000);
+            s.on('connect', () => { s.end(); res(name + ' reachable on ' + port); });
+            s.on('timeout', () => { s.destroy(); rej(new Error(name + ' timed out on ' + port)); });
+            s.on('error', (e) => rej(new Error(name + ' unreachable on ' + port + ': ' + e.message)));
+          });
+          Promise.all([check(5435, 'postgres'), check(6381, 'redis')])
+            .then((r) => r.forEach((line) => console.log(line)))
+            .catch((e) => { console.error(e.message); process.exit(1); });
+          "
 
       - name: Build packages
         run: pnpm turbo run build --filter=./packages/*

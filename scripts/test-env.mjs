@@ -78,7 +78,11 @@ function main() {
   }
 
   console.log('applying migrations to ' + TEST_DB + '…');
-  execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
+  // `pnpm exec`, not `npx`. With no local binary to find, npx downloads whatever the
+  // registry currently publishes — which at one point meant a next-major Prisma release
+  // candidate that had renamed `migrate`, making the outcome depend on the date.
+  // `pnpm exec` resolves the version pinned in the lockfile or fails.
+  execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
     cwd: resolve(root, 'packages', 'database'),
     env: { ...process.env, DATABASE_URL: url },
     stdio: 'inherit',
