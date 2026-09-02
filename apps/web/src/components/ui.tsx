@@ -128,10 +128,17 @@ export function CodeBlock({ children }: { children: string }): ReactNode {
 
 export function PageHeader({
   title,
+  count,
   subtitle,
   actions,
 }: {
   title: string;
+  /**
+   * The one number that says how much there is to deal with, set directly beneath the
+   * title — "12 unresolved tasks". It sits above the prose because on an operations
+   * page the quantity is read first and the explanation second.
+   */
+  count?: ReactNode;
   subtitle?: string;
   actions?: ReactNode;
 }): ReactNode {
@@ -139,6 +146,7 @@ export function PageHeader({
     <header className={styles.pageHeader}>
       <div>
         <h1 className={styles.pageTitle}>{title}</h1>
+        {count !== undefined && <div className={styles.pageCount}>{count}</div>}
         {subtitle !== undefined && <p className={styles.pageSubtitle}>{subtitle}</p>}
       </div>
       {actions !== undefined && <div className={styles.actions}>{actions}</div>}

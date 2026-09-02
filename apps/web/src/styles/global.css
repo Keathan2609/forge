@@ -33,7 +33,7 @@ h4 {
   margin: 0;
   font-weight: 600;
   line-height: var(--leading-tight);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-title);
 }
 
 p {
@@ -80,11 +80,12 @@ table {
   width: 100%;
 }
 
-/* A single visible focus treatment, applied only for keyboard navigation. */
+/* A single visible focus treatment, applied only for keyboard navigation. Square and
+ * achromatic, like every other emphasis in the console. */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 1px solid var(--interactive);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
 }
 
 :focus:not(:focus-visible) {
@@ -102,8 +103,8 @@ table {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: 5px;
+  background: var(--hairline-strong);
+  border-radius: 0;
   border: 2px solid var(--bg-base);
 }
 
@@ -112,7 +113,8 @@ table {
 }
 
 ::selection {
-  background: var(--accent-dim);
+  background: var(--interactive);
+  color: var(--text-inverted);
 }
 
 /* --- @xyflow/react overrides --------------------------------------------
@@ -128,8 +130,11 @@ table {
   stroke-width: 1.5;
 }
 
+/* An active edge brightens rather than changing hue — the dash animation is what says
+ * "moving", so the colour channel stays free for failure and warning. */
 .react-flow__edge.animated .react-flow__edge-path {
   stroke: var(--state-running);
+  stroke-width: 1.75;
 }
 
 .react-flow__arrowhead polyline,
@@ -138,35 +143,54 @@ table {
   fill: var(--border-strong);
 }
 
+/* Square handles. Round ports on a square node read as a diagram tool; these read as
+ * terminals on a component. */
 .react-flow__handle {
-  width: 6px;
-  height: 6px;
-  background: var(--border-strong);
+  width: 5px;
+  height: 5px;
+  border-radius: 0;
+  background: var(--hairline-bright);
   border: none;
 }
 
 .react-flow__controls {
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-default);
+  box-shadow: none;
+  border: 1px solid var(--hairline-strong);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
 
-.react-flow__controls-button {
+/* Scoped under `.react-flow` to outrank the library's own `#fefefe` button rule, which
+ * is loaded after this file and otherwise leaves a white block sitting on the canvas. */
+.react-flow .react-flow__controls-button {
   background: var(--bg-raised);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--hairline);
   fill: var(--text-secondary);
 }
 
-.react-flow__controls-button:hover {
+.react-flow .react-flow__controls-button:hover {
   background: var(--bg-overlay);
   fill: var(--text-primary);
 }
 
 .react-flow__minimap {
   background: var(--bg-surface);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--hairline-strong);
   border-radius: var(--radius-md);
+}
+
+/* The library's defaults are a light-theme mask and near-white nodes, which render as a
+ * bright block on a near-black canvas. The viewport window is a bone outline over a
+ * dimmed field instead. */
+.react-flow .react-flow__minimap-mask {
+  fill: rgba(11, 11, 10, 0.72);
+  stroke: var(--interactive-border);
+  stroke-width: 1;
+}
+
+.react-flow .react-flow__minimap-node {
+  fill: var(--hairline-bright);
+  stroke: none;
 }
 
 .react-flow__attribution {

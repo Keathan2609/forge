@@ -12,7 +12,7 @@
   position: relative;
   width: 196px;
   background: var(--bg-raised);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--hairline-strong);
   border-radius: var(--radius-md);
   overflow: hidden;
   font-family: var(--font-sans);
@@ -23,14 +23,17 @@
   cursor: pointer;
 }
 
+/* Hover lifts the border rather than adding a shadow: a drop shadow on a node floating
+ * over a grid canvas reads as a sticker, not as a component. */
 .node:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-md);
+  border-color: var(--hairline-bright);
 }
 
+/* Selection is a doubled bone rule — the strongest mark available without a hue, and
+ * distinguishable from every state colour on the canvas. */
 .selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--interactive);
+  box-shadow: 0 0 0 1px var(--interactive);
 }
 
 .accent {
@@ -38,7 +41,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 4px;
 }
 
 .body {
@@ -66,7 +69,7 @@
 
 .attempt {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   color: var(--text-tertiary);
   flex-shrink: 0;
 }
@@ -81,7 +84,7 @@
 
 .type {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
@@ -89,7 +92,7 @@
 }
 
 .state {
-  font-size: 10px;
+  font-size: var(--text-2xs);
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -99,13 +102,13 @@
 
 .duration {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   color: var(--text-tertiary);
 }
 
 .worker {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   color: var(--text-disabled);
   white-space: nowrap;
   overflow: hidden;
@@ -113,7 +116,7 @@
 }
 
 .error {
-  font-size: 10px;
+  font-size: var(--text-2xs);
   color: var(--state-error);
   white-space: nowrap;
   overflow: hidden;

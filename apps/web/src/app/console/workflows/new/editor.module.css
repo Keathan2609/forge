@@ -1,37 +1,52 @@
+/* Three columns with no gutter: the panels meet the canvas on a shared hairline, so the
+ * editor reads as one instrument with rails rather than three floating cards. The canvas
+ * takes everything left over, which is the point of the screen. */
 .layout {
   display: grid;
-  grid-template-columns: 300px 1fr 320px;
-  gap: var(--space-3);
-  height: calc(100vh - var(--header-height) - var(--space-6) * 2 - 76px);
+  grid-template-columns: 264px minmax(0, 1fr) 340px;
+  gap: 0;
+  height: calc(100vh - var(--header-height) - var(--space-8) * 2 - 96px);
   min-height: 520px;
+  border: 1px solid var(--hairline-strong);
 }
 
 @media (max-width: 1400px) {
   .layout {
-    grid-template-columns: 260px 1fr;
-    grid-template-rows: 1fr auto;
+    grid-template-columns: 232px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
   }
   .inspector {
     grid-column: 1 / -1;
     max-height: 320px;
   }
+  .inspector.panel {
+    border-left: none;
+    border-top: 1px solid var(--hairline-strong);
+  }
 }
 
 .panel {
   background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-right: 1px solid var(--hairline-strong);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
+}
+
+/* The inspector is the right-hand rail: its rule is on the leading edge instead. */
+.inspector.panel {
+  border-right: none;
+  border-left: 1px solid var(--hairline-strong);
 }
 
 .panelHeader {
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: var(--text-xs);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--bg-base);
+  font-size: var(--text-2xs);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--text-secondary);
   display: flex;
@@ -57,22 +72,24 @@
 }
 
 /* --- palette -------------------------------------------------------------- */
+/* Rows on hairlines rather than a column of bordered tiles — the palette is a list of
+ * handler types, and a border around each one only repeats the list. */
 .paletteItem {
   width: 100%;
   text-align: left;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-raised);
-  margin-bottom: var(--space-2);
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  border-left: 2px solid transparent;
+  background: transparent;
   transition:
     border-color var(--duration-fast) var(--ease),
     background var(--duration-fast) var(--ease);
 }
 
 .paletteItem:hover {
-  border-color: var(--accent-border);
-  background: var(--bg-overlay);
+  border-left-color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .paletteType {
@@ -162,8 +179,9 @@
 }
 
 .nodeItemActive {
-  background: var(--accent-dim);
-  color: var(--accent);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  box-shadow: inset 2px 0 0 var(--text-primary);
 }
 
 .nodeItemKey {
@@ -187,11 +205,10 @@
 
 .connectHint {
   font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   padding: var(--space-2) var(--space-3);
-  background: var(--accent-dim);
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  border-left: 2px solid var(--text-primary);
   margin-bottom: var(--space-3);
 }
 

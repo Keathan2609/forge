@@ -67,10 +67,11 @@ export default async function RunsPage({
 
       <PageHeader
         title="Runs"
+        count={page.items.length + (page.items.length === 1 ? ' run' : ' runs') + ' shown'}
         subtitle={
           params.workflow
-            ? 'Filtered to ' + params.workflow
-            : 'Every workflow execution, newest first'
+            ? 'Filtered to ' + params.workflow + '.'
+            : 'Every workflow execution, newest first.'
         }
         actions={
           <div className={ui.actions}>

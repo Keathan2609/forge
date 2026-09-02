@@ -1,36 +1,100 @@
+/* Asymmetric by design: the graph is the subject of this screen and gets the canvas,
+ * while the inspector is a fixed-width instrument panel down the right-hand side. */
 .layout {
   display: grid;
-  grid-template-columns: 1fr 360px;
-  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: var(--space-6);
   align-items: start;
 }
 
-@media (max-width: 1200px) {
+/* 1280 is a target desktop width, so the asymmetric layout has to survive it. Below
+ * ~1150 the graph gets too narrow to read and the inspector moves underneath. */
+@media (max-width: 1150px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel {
+    position: static;
   }
 }
 
-.summary {
+/* --- run readout ---------------------------------------------------------
+ * Vital signs across the top: state, elapsed time, progress, fan-out. Divided by rules
+ * rather than boxed, on the same principle as the telemetry bar in the shell.
+ */
+.readout {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
+  align-items: stretch;
   flex-wrap: wrap;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
+  border-top: 1px solid var(--hairline-strong);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.readoutItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6) var(--space-3) 0;
+  margin-right: var(--space-6);
+  border-right: 1px solid var(--hairline);
+  min-width: 92px;
+}
+
+.readoutItem:last-child {
+  border-right: none;
+  margin-right: 0;
+}
+
+.readoutLabel {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-tertiary);
+}
+
+.readoutValue {
+  display: flex;
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+/* The denominator recedes: "5" is the reading, "/5" is the scale on the dial. */
+.readoutOf {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.readoutWarn {
+  color: var(--state-warn);
+}
+
+.readoutError {
+  color: var(--state-error);
 }
 
 .live {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   color: var(--text-tertiary);
+  margin-right: var(--space-2);
 }
 
 .liveDot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
   background: var(--state-success);
   animation: pulse 1.6s var(--ease) infinite;
 }
@@ -52,7 +116,7 @@
 
 /* --- timeline ------------------------------------------------------------ */
 .timeline {
-  max-height: 460px;
+  max-height: 520px;
   overflow-y: auto;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -121,29 +185,33 @@
 }
 
 .panelLabel {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
+  font-weight: 600;
   color: var(--text-tertiary);
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .attempts {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
 }
 
+/* Attempts are rows on hairlines, not boxes — a stack of bordered rectangles inside an
+ * already-bordered panel is the pattern this redesign exists to remove. */
 .attempt {
   display: grid;
   grid-template-columns: 22px 1fr auto;
   gap: var(--space-2);
   align-items: baseline;
-  padding: var(--space-2);
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--hairline);
   font-size: var(--text-xs);
+}
+
+.attempt:last-child {
+  border-bottom: none;
 }
 
 .attemptNumber {

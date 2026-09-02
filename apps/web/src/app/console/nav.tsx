@@ -8,12 +8,17 @@ import { forgeApi } from '@/lib/api';
 import styles from './layout.module.css';
 
 /**
- * Console navigation and the live status strip.
+ * Console navigation, the location breadcrumb, and the live telemetry strip.
  *
- * The header polls `/v1/system/status` rather than subscribing: it is one small request
- * every five seconds, it recovers on its own from any transport failure, and it does not
- * consume an SSE connection that a run page might need. Run pages, where latency
- * actually matters, use SSE.
+ * The navigation is indexed. Numbering the destinations costs nothing and does two
+ * useful things: it gives the column a fixed left edge to align against, and it makes
+ * the sections referable — "06" is a shorter thing to say than "dead letters" when
+ * someone is reading over your shoulder.
+ *
+ * The telemetry strip polls `/v1/system/status` rather than subscribing: it is one small
+ * request every five seconds, it recovers on its own from any transport failure, and it
+ * does not consume an SSE connection that a run page might need. Run pages, where
+ * latency actually matters, use SSE.
  */
 
 const NAV: Array<{
@@ -39,8 +44,16 @@ const NAV: Array<{
   },
 ];
 
+/** `/console` must only match exactly, or Overview stays highlighted everywhere. */
+function isActive(href: string, pathname: string): boolean {
+  return href === '/console' ? pathname === href : pathname.startsWith(href);
+}
+
 export function ConsoleNav({ deadLetterCount }: { deadLetterCount: number }): ReactNode {
   const pathname = usePathname();
+  // Numbered continuously across groups, so the index is a stable address for a
+  // destination rather than a position within its section.
+  let index = 0;
 
   return (
     <nav className={styles.nav}>
@@ -48,9 +61,8 @@ export function ConsoleNav({ deadLetterCount }: { deadLetterCount: number }): Re
         <div key={group.group} className={styles.navGroup}>
           <div className={styles.navGroupLabel}>{group.group}</div>
           {group.items.map((item) => {
-            // `/console` must only match exactly, or Overview stays highlighted everywhere.
-            const active =
-              item.href === '/console' ? pathname === item.href : pathname.startsWith(item.href);
+            index += 1;
+            const active = isActive(item.href, pathname);
             return (
               <Link
                 key={item.href}
@@ -58,7 +70,10 @@ export function ConsoleNav({ deadLetterCount }: { deadLetterCount: number }): Re
                 className={styles.navLink + (active ? ' ' + styles.navLinkActive : '')}
                 aria-current={active ? 'page' : undefined}
               >
-                <span>{item.label}</span>
+                <span className={styles.navIndex} aria-hidden="true">
+                  {String(index).padStart(2, '0')}
+                </span>
+                <span className={styles.navLabel}>{item.label}</span>
                 {item.badge === 'deadLetters' && deadLetterCount > 0 && (
                   <span className={styles.navBadge}>{deadLetterCount}</span>
                 )}
@@ -70,14 +85,60 @@ export function ConsoleNav({ deadLetterCount }: { deadLetterCount: number }): Re
 
       <div className={styles.navFooter}>
         <a href="http://localhost:16686" target="_blank" rel="noreferrer">
-          Traces (Jaeger) ↗
+          Traces ↗
         </a>
         <a href="http://localhost:9090" target="_blank" rel="noreferrer">
-          Metrics (Prometheus) ↗
+          Metrics ↗
         </a>
       </div>
     </nav>
   );
+}
+
+/**
+ * Where you are, as `FORGE / SECTION`.
+ *
+ * Derived from the navigation table rather than from a per-page prop, so a page cannot
+ * disagree with the sidebar about which section it belongs to.
+ */
+export function Breadcrumb(): ReactNode {
+  const pathname = usePathname();
+  const current = NAV.flatMap((g) => g.items).find((item) => isActive(item.href, pathname));
+
+  return (
+    <div className={styles.breadcrumb}>
+      <span className={styles.breadcrumbRoot}>Forge</span>
+      <span className={styles.breadcrumbSep} aria-hidden="true">
+        /
+      </span>
+      <span>{current?.label ?? 'Console'}</span>
+    </div>
+  );
+}
+
+/** One reading in the telemetry strip: a legend above a monospace value. */
+function Metric({
+  label,
+  children,
+  strong,
+}: {
+  label: string;
+  children: ReactNode;
+  strong?: boolean;
+}): ReactNode {
+  return (
+    <div className={styles.headerMetric}>
+      <span className={styles.headerMetricLabel}>{label}</span>
+      <span className={styles.headerMetricValue + (strong ? ' ' + styles.headerMetricStrong : '')}>
+        {children}
+      </span>
+    </div>
+  );
+}
+
+/** Counts are zero-padded so the strip does not reflow as numbers cross a digit. */
+function pad(value: number): string {
+  return String(value).padStart(2, '0');
 }
 
 export function StatusStrip(): ReactNode {
@@ -112,10 +173,10 @@ export function StatusStrip(): ReactNode {
   if (unreachable) {
     return (
       <div className={styles.headerStatus}>
-        <span className={styles.headerMetric}>
+        <Metric label="System">
           <span className={styles.statusDot + ' ' + styles.statusDown} />
-          API unreachable
-        </span>
+          Unreachable
+        </Metric>
       </div>
     );
   }
@@ -123,7 +184,7 @@ export function StatusStrip(): ReactNode {
   if (!status) {
     return (
       <div className={styles.headerStatus}>
-        <span className={styles.headerMetric}>connecting…</span>
+        <Metric label="System">—</Metric>
       </div>
     );
   }
@@ -132,24 +193,19 @@ export function StatusStrip(): ReactNode {
 
   return (
     <div className={styles.headerStatus}>
-      <span className={styles.headerMetric}>
-        <span className={styles.headerMetricValue}>{status.components.workers.online}</span>
-        workers
-      </span>
-      <span className={styles.headerMetric}>
-        <span className={styles.headerMetricValue}>{status.components.outbox.pending}</span>
-        outbox
-      </span>
-      <span className={styles.headerMetric}>
-        <span className={styles.headerMetricValue}>
-          {status.components.database.latencyMs ?? '—'}ms
-        </span>
-        db
-      </span>
-      <span className={styles.headerMetric}>
+      <Metric label="Workers" strong>
+        {pad(status.components.workers.online)}
+      </Metric>
+      <Metric label="Outbox">{pad(status.components.outbox.pending)}</Metric>
+      <Metric label="DB">
+        {status.components.database.latencyMs === null
+          ? '—'
+          : pad(status.components.database.latencyMs) + 'ms'}
+      </Metric>
+      <Metric label="System" strong>
         <span className={styles.statusDot + ' ' + dotClass} />
         {status.status}
-      </span>
+      </Metric>
     </div>
   );
 }

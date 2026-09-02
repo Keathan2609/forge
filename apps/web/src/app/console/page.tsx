@@ -43,7 +43,16 @@ export default async function OverviewPage(): Promise<ReactNode> {
 
       <PageHeader
         title="Overview"
-        subtitle="Live execution state across the cluster"
+        count={
+          runs.active === 0
+            ? 'Idle · ' + stats.workers.online + ' workers online'
+            : runs.active +
+              (runs.active === 1 ? ' run in flight' : ' runs in flight') +
+              ' · ' +
+              stats.workers.online +
+              ' workers online'
+        }
+        subtitle="Live execution state across the cluster."
         actions={
           <Link href="/console/runs" className={ui.button}>
             All runs

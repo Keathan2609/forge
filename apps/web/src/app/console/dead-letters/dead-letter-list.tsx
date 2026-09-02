@@ -5,35 +5,34 @@ import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import type { DeadLetterView } from '@forge/contracts';
 import { forgeApi } from '@/lib/api';
-import { formatDuration, formatRelative, shortId } from '@/lib/format';
-import {
-  Card,
-  CodeBlock,
-  Empty,
-  ErrorBox,
-  KeyValue,
-  PageHeader,
-  StateBadge,
-  ui,
-} from '@/components/ui';
+import { formatDuration, shortId } from '@/lib/format';
+import { TimeAgo } from '@/components/time-ago';
+import { CodeBlock, Empty, ErrorBox, KeyValue, PageHeader, StateBadge, ui } from '@/components/ui';
 import styles from './dead-letters.module.css';
 
 const STATUSES = ['OPEN', 'REPLAYED', 'ACKNOWLEDGED'] as const;
 
 /**
- * The dead-letter queue.
+ * The dead-letter queue, as an operational ledger.
  *
  * Every entry expands to show the *complete* attempt history — every attempt, its
  * worker, its duration and its error. That is the whole value of the page: "it failed"
  * is not actionable, "it failed three times on three different workers with the same
  * error" is.
+ *
+ * The row is a ledger line rather than a card because the page's job is comparison. An
+ * operator scans the error column looking for the one entry that is not the same
+ * `SIMULATED_FAILURE` as the eleven above it, and aligned columns are what make that
+ * possible.
  */
 export function DeadLetterList({
   items,
   status,
+  counts,
 }: {
   items: DeadLetterView[];
   status: string;
+  counts: Record<string, number>;
 }): ReactNode {
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -54,27 +53,35 @@ export function DeadLetterList({
     }
   };
 
+  const openCount = counts.OPEN ?? 0;
+
   return (
     <>
       <PageHeader
         title="Dead letters"
-        subtitle="Tasks that exhausted their retry budget and are waiting for a decision"
-        actions={
-          <div className={ui.actions}>
-            {STATUSES.map((option) => (
-              <Link
-                key={option}
-                href={'/console/dead-letters?status=' + option}
-                className={
-                  ui.button + ' ' + ui.buttonSmall + (status === option ? '' : ' ' + ui.buttonGhost)
-                }
-              >
-                {option.toLowerCase()}
-              </Link>
-            ))}
-          </div>
+        count={
+          openCount === 0
+            ? 'No unresolved tasks'
+            : openCount + (openCount === 1 ? ' unresolved task' : ' unresolved tasks')
         }
+        subtitle="Tasks that exhausted their retry budget and require intervention."
       />
+
+      <div className={styles.filters}>
+        {STATUSES.map((option) => (
+          <Link
+            key={option}
+            href={'/console/dead-letters?status=' + option}
+            className={styles.filter + (status === option ? ' ' + styles.filterActive : '')}
+            aria-current={status === option ? 'page' : undefined}
+          >
+            <span className={styles.filterLabel}>{option}</span>
+            <span className={styles.filterCount}>
+              {String(counts[option] ?? 0).padStart(2, '0')}
+            </span>
+          </Link>
+        ))}
+      </div>
 
       {error && (
         <div style={{ marginBottom: 'var(--space-4)' }}>
@@ -83,45 +90,49 @@ export function DeadLetterList({
       )}
 
       {items.length === 0 ? (
-        <Card>
-          <Empty
-            title={status === 'OPEN' ? 'No open dead letters' : 'Nothing here'}
-            hint={
-              status === 'OPEN'
-                ? 'Every task that has failed so far either recovered or is still retrying.'
-                : undefined
-            }
-          />
-        </Card>
+        <Empty
+          title={status === 'OPEN' ? 'No open dead letters' : 'Nothing here'}
+          hint={
+            status === 'OPEN'
+              ? 'Every task that has failed so far either recovered or is still retrying.'
+              : undefined
+          }
+        />
       ) : (
-        <div className={styles.list}>
+        <div className={styles.ledger}>
+          <div className={styles.head} aria-hidden="true">
+            <span>Workflow</span>
+            <span>Task</span>
+            <span>Error</span>
+            <span className={styles.headRight}>Attempts</span>
+            <span className={styles.headRight}>Age</span>
+            <span className={styles.headRight}>Status</span>
+          </div>
+
           {items.map((item) => {
             const open = expanded === item.id;
             return (
               <div key={item.id} className={styles.entry}>
                 <button
-                  className={styles.entryHeader}
+                  className={styles.row + (open ? ' ' + styles.rowOpen : '')}
                   onClick={() => setExpanded(open ? null : item.id)}
                   aria-expanded={open}
                 >
-                  <span className={styles.entryMain}>
-                    <span className={styles.entryTitle}>
-                      <span className={ui.mono}>{item.workflowKey}</span>
-                      <span className={styles.separator}>/</span>
-                      <span className={styles.entryNode}>{item.nodeKey}</span>
-                    </span>
-                    <span className={styles.entryError}>
-                      {item.errorCode ? item.errorCode + ': ' : ''}
-                      {item.errorMessage}
-                    </span>
+                  <span className={styles.workflow}>{item.workflowKey}</span>
+                  <span className={styles.task}>{item.nodeKey}</span>
+                  <span className={styles.error}>
+                    {item.errorCode && <span className={styles.errorCode}>{item.errorCode}</span>}
+                    <span className={styles.errorMessage}>{item.errorMessage}</span>
                   </span>
-                  <span className={styles.entryMeta}>
+                  <span className={styles.attempts}>{String(item.attempts).padStart(2, '0')}</span>
+                  <span className={styles.age}>
+                    <TimeAgo iso={item.createdAt} />
+                  </span>
+                  <span className={styles.status}>
                     <StateBadge
                       state={item.status === 'OPEN' ? 'FAILED' : 'SKIPPED'}
                       label={item.status}
                     />
-                    <span className={ui.mono}>{item.attempts} attempts</span>
-                    <span className={ui.muted}>{formatRelative(item.createdAt)}</span>
                     <span className={styles.chevron + (open ? ' ' + styles.chevronOpen : '')}>
                       ›
                     </span>
@@ -129,7 +140,7 @@ export function DeadLetterList({
                 </button>
 
                 {open && (
-                  <div className={styles.entryBody}>
+                  <div className={styles.body}>
                     <div className={styles.detailGrid}>
                       <div>
                         <div className={styles.sectionLabel}>Details</div>
@@ -147,7 +158,7 @@ export function DeadLetterList({
                                 key="r"
                                 href={'/console/runs/' + item.workflowRunId}
                                 className={ui.mono}
-                                style={{ color: 'var(--accent)' }}
+                                style={{ textDecoration: 'underline' }}
                               >
                                 {shortId(item.workflowRunId, 12)} →
                               </Link>,
@@ -158,14 +169,15 @@ export function DeadLetterList({
                                 {shortId(item.taskRunId, 12)}
                               </span>,
                             ],
-                            ['Created', formatRelative(item.createdAt)],
+                            ['Created', <TimeAgo key="c" iso={item.createdAt} />],
                             ...(item.resolvedAt
                               ? ([
                                   [
                                     'Resolved',
-                                    formatRelative(item.resolvedAt) +
-                                      ' by ' +
-                                      (item.resolvedBy ?? 'unknown'),
+                                    <span key="rs">
+                                      <TimeAgo iso={item.resolvedAt} /> by{' '}
+                                      {item.resolvedBy ?? 'unknown'}
+                                    </span>,
                                   ],
                                 ] as Array<[string, ReactNode]>)
                               : []),
@@ -173,7 +185,7 @@ export function DeadLetterList({
                         />
                         <div
                           className={styles.sectionLabel}
-                          style={{ marginTop: 'var(--space-4)' }}
+                          style={{ marginTop: 'var(--space-6)' }}
                         >
                           Input
                         </div>
@@ -184,18 +196,22 @@ export function DeadLetterList({
                         <div className={styles.sectionLabel}>
                           Attempt history ({item.attemptHistory.length})
                         </div>
-                        <div className={styles.attempts}>
+                        <div>
                           {item.attemptHistory.map((attempt) => (
-                            <div key={attempt.id} className={styles.attempt}>
-                              <span className={styles.attemptNumber}>#{attempt.attemptNumber}</span>
+                            <div key={attempt.id} className={styles.attemptRow}>
+                              <span className={styles.attemptNumber}>
+                                {String(attempt.attemptNumber).padStart(2, '0')}
+                              </span>
                               <StateBadge state={attempt.state} />
+                              <span className={styles.attemptError}>
+                                {attempt.errorMessage ?? '—'}
+                              </span>
                               <span className={styles.attemptMeta}>
                                 {formatDuration(attempt.durationMs)}
-                                {attempt.workerId ? ' · ' + shortId(attempt.workerId, 6) : ''}
+                                {attempt.workerId
+                                  ? ' · worker ' + shortId(attempt.workerId, 6)
+                                  : ''}
                               </span>
-                              {attempt.errorMessage && (
-                                <span className={styles.attemptError}>{attempt.errorMessage}</span>
-                              )}
                             </div>
                           ))}
                         </div>
@@ -218,7 +234,7 @@ export function DeadLetterList({
                         >
                           Acknowledge
                         </button>
-                        <span className={ui.muted} style={{ fontSize: 'var(--text-xs)' }}>
+                        <span className={styles.actionNote}>
                           Retry returns the task to the queue with a fresh retry budget. It only
                           works while the parent run is still live.
                         </span>

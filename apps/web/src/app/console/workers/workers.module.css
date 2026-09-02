@@ -1,90 +1,211 @@
-.grid {
+/*
+ * The worker fleet, as a ledger.
+ *
+ * A fleet is a set of near-identical things, and the operator's question is almost never
+ * "tell me about this worker" — it is "which of these is different". Cards answer the
+ * first question and obstruct the second, because comparing a value across six cards
+ * means finding it six times in six places. Aligned columns answer the second directly:
+ * a worker with no free slots, a stale heartbeat or a failure count breaks the pattern
+ * of the column it sits in.
+ */
+
+.ledger {
+  --w-columns: minmax(180px, 1.3fr) 96px minmax(150px, 1fr) minmax(140px, 1fr) 96px 90px 96px;
+  border-top: 1px solid var(--hairline-strong);
+}
+
+.head {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: var(--w-columns);
   gap: var(--space-4);
-}
-
-.workerHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.loadRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.loadLabel {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
   color: var(--text-tertiary);
+}
+
+.headRight {
+  text-align: right;
+}
+
+.worker {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--w-columns);
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-4);
+  border-left: 2px solid transparent;
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+.worker:hover .row {
+  border-left-color: var(--hairline-bright);
+}
+
+/* --- identity -------------------------------------------------------------- */
+
+.name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nameLabel {
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Discrete slots rather than a continuous bar: a worker has an integer number of
-   concurrency slots, and showing them individually makes "3 of 4 busy" literal. */
+/* The worker id is machine data and is the thing you paste into a log query. */
+.nameId {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-disabled);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- load -----------------------------------------------------------------
+ * Discrete slots rather than a continuous bar: a worker has an integer number of
+ * concurrency slots, and showing them individually makes "3 of 4 busy" literal.
+ */
+
+.load {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
 .loadBar {
   display: flex;
-  gap: 3px;
-  flex: 1;
+  gap: 2px;
 }
 
 .loadSlot {
   flex: 1;
-  height: 6px;
-  border-radius: 1px;
-  background: var(--border-subtle);
-  border: 1px solid var(--border-default);
+  height: 8px;
+  min-width: 6px;
+  background: transparent;
+  border: 1px solid var(--hairline-bright);
 }
 
+/* A busy slot fills solid. No glow — this is a gauge, not an indicator light. */
 .loadSlotActive {
-  background: var(--state-running);
-  border-color: var(--state-running);
-  box-shadow: 0 0 5px color-mix(in srgb, var(--state-running) 55%, transparent);
+  background: var(--text-primary);
+  border-color: var(--text-primary);
 }
 
-.loadPercent {
+.loadLabel {
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--text-tertiary);
-  min-width: 34px;
+  white-space: nowrap;
+}
+
+/* --- data cells ------------------------------------------------------------ */
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.numeric {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
   text-align: right;
+  white-space: nowrap;
 }
 
-.currentTasks {
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border-subtle);
+.failed {
+  color: var(--state-error);
 }
 
-.currentLabel {
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  margin-bottom: var(--space-2);
+.stale {
+  color: var(--state-warn);
 }
 
-.currentTask {
+/* --- currently executing --------------------------------------------------
+ * Indented beneath its worker so the association is positional. Only rendered when the
+ * worker is actually doing something, which keeps an idle fleet quiet.
+ */
+
+.tasks {
+  padding: 0 var(--space-4) var(--space-3) calc(var(--space-4) + var(--space-6));
+}
+
+.task {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: 3px var(--space-2);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  transition: background var(--duration-fast) var(--ease);
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--hairline);
+  font-size: var(--text-sm);
+  transition: color var(--duration-fast) var(--ease);
 }
 
-.currentTask:hover {
-  background: var(--bg-hover);
-}
-
-.currentNode {
+.taskMark {
   font-family: var(--font-mono);
-  color: var(--state-running);
+  font-size: var(--text-2xs);
+  color: var(--text-disabled);
+}
+
+.taskNode {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.taskMeta {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+}
+
+.task:hover .taskNode {
+  text-decoration: underline;
+}
+
+@media (max-width: 1100px) {
+  .ledger {
+    --w-columns: 1fr 1fr;
+  }
+
+  .head {
+    display: none;
+  }
+
+  .row {
+    align-items: start;
+    gap: var(--space-3) var(--space-4);
+  }
+
+  .numeric {
+    text-align: left;
+  }
+
+  .tasks {
+    padding-left: var(--space-4);
+  }
 }

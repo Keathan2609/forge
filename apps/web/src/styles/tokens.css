@@ -2,79 +2,126 @@
  * FORGE design tokens.
  *
  * The console is an operations tool: it is read in a dim room, next to a terminal, while
- * something is on fire. That drives every decision here — a near-black ground so the
- * graph and the state colours carry the signal, one accent used exclusively for
- * interaction, and state colours that stay distinguishable for the ~8% of men with
- * red-green colour vision deficiency (states are never encoded by colour alone; every
- * one also carries a label and a distinct node border).
+ * something is on fire. Three rules follow from that, and every token below obeys them.
  *
- * Type is a monospace/sans pair: sans for prose and labels, mono for anything that is an
- * identifier, a duration, or a value you might copy.
+ * 1. THE GROUND IS NEUTRAL AND WARM. Near-black with a trace of warmth rather than the
+ *    blue-black every dark dashboard ships. Warmth reads as machined metal; blue-black
+ *    reads as a marketing site. Nothing in the chrome is coloured.
+ *
+ * 2. COLOUR IS STATE, NEVER DECORATION. There is no brand accent. If something is
+ *    coloured it is because it failed, it is degraded, or it is healthy — so a single
+ *    red row on a neutral page is impossible to miss. Interaction is expressed with
+ *    weight, inversion and rules instead of with a hue, which is why `--interactive`
+ *    resolves to bone rather than to a colour.
+ *
+ * 3. STATE IS NEVER ENCODED BY COLOUR ALONE. Every state also carries a label and a
+ *    distinct mark, for the ~8% of men with red-green colour vision deficiency.
+ *
+ * Type is a sans/mono pair with a strict division of labour: sans carries the interface
+ * — titles, navigation, labels, workflow and task names. Mono carries machine data —
+ * identifiers, timestamps, durations, error codes, anything you might copy into a
+ * terminal. Mono is a signal that a value came out of the system, so it stops being a
+ * signal if everything is set in it.
  */
 
 :root {
-  /* --- ground ----------------------------------------------------------- */
-  --bg-base: #08090b;
-  --bg-surface: #0d0f13;
-  --bg-raised: #131519;
-  --bg-overlay: #181b21;
-  --bg-input: #0a0b0e;
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active: rgba(255, 255, 255, 0.07);
-
-  /* --- borders ---------------------------------------------------------- */
-  --border-subtle: #1c1f26;
-  --border-default: #262a33;
-  --border-strong: #363b47;
-
-  /* --- text ------------------------------------------------------------- */
-  --text-primary: #e8eaed;
-  --text-secondary: #9aa1ad;
-  --text-tertiary: #6b7280;
-  --text-disabled: #4b5563;
-
-  /* --- accent: interaction only, never state ---------------------------- */
-  --accent: #4d8dff;
-  --accent-hover: #6b9fff;
-  --accent-dim: rgba(77, 141, 255, 0.14);
-  --accent-border: rgba(77, 141, 255, 0.42);
-
-  /* --- execution states -------------------------------------------------
-   * Deliberately not a rainbow. Four semantic families, each with a solid tone
-   * for text/borders and a translucent tone for fills.
+  /* --- ground -----------------------------------------------------------
+   * A four-step ramp. Most of the interface sits on --bg-base; surfaces exist to
+   * separate a region, not to draw a card around every paragraph.
    */
-  --state-success: #3fb950;
-  --state-success-dim: rgba(63, 185, 80, 0.13);
-  --state-running: #4d8dff;
-  --state-running-dim: rgba(77, 141, 255, 0.13);
-  --state-warn: #e3a008;
-  --state-warn-dim: rgba(227, 160, 8, 0.13);
-  --state-error: #f85149;
-  --state-error-dim: rgba(248, 81, 73, 0.13);
-  --state-idle: #6b7280;
-  --state-idle-dim: rgba(107, 114, 128, 0.12);
+  --bg-base: #0b0b0a;
+  --bg-surface: #101010;
+  --bg-raised: #161615;
+  --bg-overlay: #1c1b1a;
+  --bg-input: #0d0d0c;
+  --bg-hover: rgba(255, 250, 240, 0.035);
+  --bg-active: rgba(255, 250, 240, 0.06);
+  /* Inversion: the strongest emphasis available without introducing a hue. */
+  --bg-inverted: #e8e4dc;
+  --text-inverted: #0b0b0a;
 
-  /* --- type ------------------------------------------------------------- */
+  /* --- hairlines ---------------------------------------------------------
+   * Named for what they are. Structure in this interface is carried by rules and
+   * alignment, so these do more work here than borders normally do.
+   */
+  --hairline: #211f1d;
+  --hairline-strong: #2c2a27;
+  --hairline-bright: #3d3a35;
+
+  /* legacy aliases — the page stylesheets still speak in `border-*` */
+  --border-subtle: var(--hairline);
+  --border-default: var(--hairline-strong);
+  --border-strong: var(--hairline-bright);
+
+  /* --- text -------------------------------------------------------------- */
+  --text-primary: #e8e4dc;
+  --text-secondary: #97928a;
+  --text-tertiary: #6d6862;
+  --text-disabled: #504b46;
+
+  /* --- interaction: bone, not blue ---------------------------------------
+   * Deliberately achromatic. A link or a focused control is emphasised by becoming
+   * *brighter* than its surroundings, which leaves the entire colour channel free to
+   * mean something.
+   */
+  --interactive: #ddd8ce;
+  --interactive-hover: #ffffff;
+  --interactive-dim: rgba(232, 228, 220, 0.09);
+  --interactive-border: rgba(232, 228, 220, 0.34);
+
+  /* legacy aliases — kept so no stylesheet has to say `blue` to say `emphasis` */
+  --accent: var(--interactive);
+  --accent-hover: var(--interactive-hover);
+  --accent-dim: var(--interactive-dim);
+  --accent-border: var(--interactive-border);
+
+  /* --- execution states ---------------------------------------------------
+   * Three semantic colours and two neutrals. Desaturated on purpose: these sit on
+   * near-black, where a saturated hue glows and stops looking like instrumentation.
+   *
+   * RUNNING is deliberately *not* coloured. "In progress" is not a condition anyone
+   * needs to spot from across a room, and spending a hue on it would leave red and
+   * amber competing with it. Motion carries it instead.
+   */
+  --state-success: #6f9c58;
+  --state-success-dim: rgba(111, 156, 88, 0.14);
+  --state-warn: #c58f2b;
+  --state-warn-dim: rgba(197, 143, 43, 0.14);
+  --state-error: #c4473c;
+  --state-error-dim: rgba(196, 71, 60, 0.15);
+  --state-running: #d8d3c9;
+  --state-running-dim: rgba(216, 211, 201, 0.1);
+  --state-idle: #6d6862;
+  --state-idle-dim: rgba(109, 104, 98, 0.12);
+
+  /* --- type --------------------------------------------------------------- */
   --font-sans:
-    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
   --font-mono:
-    ui-monospace, 'SF Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas,
-    'Liberation Mono', monospace;
+    ui-monospace, 'SF Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, 'Liberation Mono',
+    monospace;
 
+  --text-2xs: 10px;
   --text-xs: 11px;
   --text-sm: 12px;
   --text-base: 13px;
-  --text-md: 14px;
-  --text-lg: 17px;
-  --text-xl: 22px;
-  --text-2xl: 30px;
-  --text-3xl: 44px;
+  --text-md: 15px;
+  --text-lg: 19px;
+  --text-xl: 26px;
+  --text-2xl: 34px;
+  --text-3xl: 46px;
 
-  --leading-tight: 1.25;
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
   --leading-normal: 1.55;
 
-  /* --- space: a 4px scale ------------------------------------------------ */
+  /* Tracking. Wide tracking on small uppercase text is what makes a label read as an
+   * engraved panel legend rather than as shouting. */
+  --tracking-label: 0.14em;
+  --tracking-title: 0.02em;
+
+  /* --- space: a 4px scale ------------------------------------------------- */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -86,23 +133,30 @@
   --space-12: 48px;
   --space-16: 64px;
 
-  /* --- radii: restrained. This is infrastructure, not a consumer app. ---- */
-  --radius-sm: 3px;
-  --radius-md: 5px;
-  --radius-lg: 8px;
+  /* --- radii ---------------------------------------------------------------
+   * Effectively square. 2px is the largest radius in the system and exists only to
+   * stop 1px hairlines looking chipped where they meet. Anything rounder reads as a
+   * consumer app.
+   */
+  --radius-sm: 0px;
+  --radius-md: 1px;
+  --radius-lg: 2px;
 
-  /* --- elevation --------------------------------------------------------- */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+  /* --- elevation -----------------------------------------------------------
+   * Only for things that genuinely float (menus, popovers). Panels are separated by
+   * rules, not by shadows.
+   */
+  --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.66);
 
-  /* --- motion: fast and few --------------------------------------------- */
-  --duration-fast: 90ms;
-  --duration-normal: 160ms;
+  /* --- motion: fast, few, and only ever to explain a change ---------------- */
+  --duration-fast: 80ms;
+  --duration-normal: 150ms;
   --ease: cubic-bezier(0.2, 0, 0.2, 1);
 
-  --header-height: 48px;
-  --sidebar-width: 208px;
+  --header-height: 52px;
+  --sidebar-width: 216px;
 }
 
 /* Respect the OS setting rather than animating regardless. */

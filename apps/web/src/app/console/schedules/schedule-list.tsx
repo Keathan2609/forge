@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import type { ScheduleView } from '@forge/contracts';
 import { forgeApi } from '@/lib/api';
-import { formatDateTime, formatRelative, shortId } from '@/lib/format';
+import { formatDateTime, shortId } from '@/lib/format';
+import { TimeAgo } from '@/components/time-ago';
 import { Card, Empty, ErrorBox, PageHeader, ui } from '@/components/ui';
 
 /**
@@ -38,7 +39,13 @@ export function ScheduleList({ items }: { items: ScheduleView[] }): ReactNode {
     <>
       <PageHeader
         title="Schedules"
-        subtitle="Durable cron and one-shot triggers, stored in PostgreSQL"
+        count={
+          items.filter((s) => s.enabled).length +
+          ' active of ' +
+          items.length +
+          (items.length === 1 ? ' schedule' : ' schedules')
+        }
+        subtitle="Durable cron and one-shot triggers, stored in PostgreSQL."
       />
 
       {error && (
@@ -80,7 +87,7 @@ export function ScheduleList({ items }: { items: ScheduleView[] }): ReactNode {
                     <td className={ui.mono}>{schedule.cron ?? 'one-shot'}</td>
                     <td className={ui.muted}>{schedule.timezone}</td>
                     <td className={ui.mono} title={formatDateTime(schedule.nextRunAt)}>
-                      {schedule.enabled ? formatRelative(schedule.nextRunAt) : '—'}
+                      {schedule.enabled ? <TimeAgo iso={schedule.nextRunAt} /> : '—'}
                     </td>
                     <td className={ui.muted}>
                       {schedule.lastRunId ? (
@@ -88,7 +95,7 @@ export function ScheduleList({ items }: { items: ScheduleView[] }): ReactNode {
                           {shortId(schedule.lastRunId)}
                         </Link>
                       ) : (
-                        formatRelative(schedule.lastRunAt)
+                        <TimeAgo iso={schedule.lastRunAt} />
                       )}
                     </td>
                     <td>

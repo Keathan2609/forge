@@ -4,7 +4,7 @@ import { forgeApi } from '@/lib/api';
 import { formatDuration, shortId } from '@/lib/format';
 import { AutoRefresh } from '@/components/auto-refresh';
 import { TimeAgo } from '@/components/time-ago';
-import { Card, Empty, ErrorBox, PageHeader, Stat, StatGrid, StateBadge, ui } from '@/components/ui';
+import { Empty, ErrorBox, PageHeader, Stat, StatGrid, StateBadge, ui } from '@/components/ui';
 import styles from './workers.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -41,7 +41,19 @@ export default async function WorkersPage(): Promise<ReactNode> {
     <>
       <AutoRefresh intervalMs={3_000} />
 
-      <PageHeader title="Workers" subtitle="Registered workers and their current allocation" />
+      <PageHeader
+        title="Workers"
+        count={
+          online.length +
+          (online.length === 1 ? ' worker online' : ' workers online') +
+          ' · ' +
+          active +
+          ' of ' +
+          capacity +
+          ' slots busy'
+        }
+        subtitle="Every registered worker, its current allocation and its lifetime counters."
+      />
 
       <div className={ui.section}>
         <StatGrid>
@@ -63,36 +75,42 @@ export default async function WorkersPage(): Promise<ReactNode> {
       </div>
 
       {live.length === 0 ? (
-        <Card>
-          <Empty
-            title="No workers registered"
-            hint="Start the fleet with `pnpm forge:dev`, or `docker compose up -d worker`."
-          />
-        </Card>
+        <Empty
+          title="No workers registered"
+          hint="Start the fleet with `pnpm forge:dev`, or `docker compose up -d worker`."
+        />
       ) : (
-        <div className={styles.grid}>
-          {live.map((worker) => {
-            const utilisation =
-              worker.concurrency > 0 ? worker.activeTasks / worker.concurrency : 0;
-            return (
-              <Card key={worker.id} title={worker.name}>
-                <div className={styles.workerHeader}>
-                  <StateBadge state={worker.state} />
-                  <span className={ui.mono} title={worker.id}>
-                    {shortId(worker.id, 12)}
-                  </span>
-                </div>
+        <div className={styles.ledger}>
+          <div className={styles.head} aria-hidden="true">
+            <span>Worker</span>
+            <span>State</span>
+            <span>Load</span>
+            <span>Queues</span>
+            <span className={styles.headRight}>Completed</span>
+            <span className={styles.headRight}>Uptime</span>
+            <span className={styles.headRight}>Heartbeat</span>
+          </div>
 
-                <div className={styles.loadRow}>
-                  <span className={styles.loadLabel}>
-                    {worker.activeTasks} / {worker.concurrency} slots
+          {live.map((worker) => (
+            <div key={worker.id} className={styles.worker}>
+              <div className={styles.row}>
+                <span className={styles.name}>
+                  <span className={styles.nameLabel}>{worker.name}</span>
+                  <span className={styles.nameId} title={worker.id}>
+                    {shortId(worker.id, 12)} · {worker.hostname}:{worker.pid}
                   </span>
-                  <div
+                </span>
+
+                <StateBadge state={worker.state} />
+
+                <span className={styles.load}>
+                  <span
                     className={styles.loadBar}
                     role="meter"
                     aria-valuenow={worker.activeTasks}
                     aria-valuemin={0}
                     aria-valuemax={worker.concurrency}
+                    aria-label={worker.name + ' slot usage'}
                   >
                     {Array.from({ length: worker.concurrency }).map((_, index) => (
                       <span
@@ -103,65 +121,58 @@ export default async function WorkersPage(): Promise<ReactNode> {
                         }
                       />
                     ))}
-                  </div>
-                  <span className={styles.loadPercent}>{Math.round(utilisation * 100)}%</span>
-                </div>
+                  </span>
+                  <span className={styles.loadLabel}>
+                    {worker.activeTasks} / {worker.concurrency} slots · {worker.capabilities.length}{' '}
+                    handlers
+                  </span>
+                </span>
 
-                <dl className={ui.kv} style={{ marginTop: 'var(--space-3)' }}>
-                  <dt className={ui.kvKey}>Host</dt>
-                  <dd className={ui.kvValue}>
-                    <span className={ui.mono}>
-                      {worker.hostname}:{worker.pid}
-                    </span>
-                  </dd>
-                  <dt className={ui.kvKey}>Queues</dt>
-                  <dd className={ui.kvValue}>
-                    <span className={ui.mono}>{worker.queues.join(', ')}</span>
-                  </dd>
-                  <dt className={ui.kvKey}>Handlers</dt>
-                  <dd className={ui.kvValue}>
-                    <span className={ui.mono} title={worker.capabilities.join(', ')}>
-                      {worker.capabilities.length} registered
-                    </span>
-                  </dd>
-                  <dt className={ui.kvKey}>Completed</dt>
-                  <dd className={ui.kvValue}>
-                    {worker.tasksCompleted}
-                    {worker.tasksFailed > 0 && (
-                      <span style={{ color: 'var(--state-error)' }}>
-                        {' '}
-                        · {worker.tasksFailed} failed
+                <span className={styles.mono} title={worker.queues.join(', ')}>
+                  {worker.queues.join(' · ')}
+                </span>
+
+                <span className={styles.numeric}>
+                  {worker.tasksCompleted}
+                  {worker.tasksFailed > 0 && (
+                    <span className={styles.failed}> · {worker.tasksFailed}</span>
+                  )}
+                </span>
+
+                <span className={styles.numeric}>
+                  {formatDuration(worker.uptimeSeconds * 1000)}
+                </span>
+
+                <span
+                  className={
+                    styles.numeric + (worker.state === 'UNRESPONSIVE' ? ' ' + styles.stale : '')
+                  }
+                >
+                  <TimeAgo iso={worker.lastHeartbeatAt} />
+                </span>
+              </div>
+
+              {worker.currentTasks.length > 0 && (
+                <div className={styles.tasks}>
+                  {worker.currentTasks.map((task) => (
+                    <Link
+                      key={task.taskRunId}
+                      href={'/console/runs/' + task.workflowRunId}
+                      className={styles.task}
+                    >
+                      <span className={styles.taskMark} aria-hidden="true">
+                        ▸
                       </span>
-                    )}
-                  </dd>
-                  <dt className={ui.kvKey}>Uptime</dt>
-                  <dd className={ui.kvValue}>{formatDuration(worker.uptimeSeconds * 1000)}</dd>
-                  <dt className={ui.kvKey}>Heartbeat</dt>
-                  <dd className={ui.kvValue}>
-                    <TimeAgo iso={worker.lastHeartbeatAt} />
-                  </dd>
-                </dl>
-
-                {worker.currentTasks.length > 0 && (
-                  <div className={styles.currentTasks}>
-                    <div className={styles.currentLabel}>Executing now</div>
-                    {worker.currentTasks.map((task) => (
-                      <Link
-                        key={task.taskRunId}
-                        href={'/console/runs/' + task.workflowRunId}
-                        className={styles.currentTask}
-                      >
-                        <span className={styles.currentNode}>{task.nodeKey}</span>
-                        <span className={ui.muted}>
-                          <TimeAgo iso={task.startedAt} />
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
+                      <span className={styles.taskNode}>{task.nodeKey}</span>
+                      <span className={styles.taskMeta}>
+                        started <TimeAgo iso={task.startedAt} />
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </>

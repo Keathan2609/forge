@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { forgeApi } from '@/lib/api';
-import { ConsoleNav, StatusStrip } from './nav';
+import { Breadcrumb, ConsoleNav, StatusStrip } from './nav';
 import styles from './layout.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +37,7 @@ export default async function ConsoleLayout({
       </div>
 
       <header className={styles.header}>
+        <Breadcrumb />
         <StatusStrip />
       </header>
 

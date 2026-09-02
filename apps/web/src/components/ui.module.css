@@ -1,95 +1,142 @@
-/* Shared primitives: badges, cards, tables, buttons, panels. */
+/*
+ * Shared presentational primitives.
+ *
+ * The class names here are the console's whole vocabulary — every page speaks in them —
+ * so this file is where the visual system actually lives. Two conventions run through it:
+ *
+ *   Structure comes from rules and alignment, not from containers. A `.card` is a panel
+ *   around a genuine conceptual object; it is not the default way to put two things near
+ *   each other. Most grouping on these pages is done with a legend, a hairline and a
+ *   column.
+ *
+ *   Small uppercase sans with wide tracking is the system's "legend" voice — panel
+ *   titles, column heads, field labels. It is the one piece of styling used often enough
+ *   to become recognisable, which is why it is defined once here and never re-specified
+ *   locally.
+ */
 
-/* --- state badge --------------------------------------------------------- */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-sm);
-  border: 1px solid;
-  font-size: var(--text-xs);
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  line-height: 1.5;
+/* --- text utilities ------------------------------------------------------- */
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
-.badgeDot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
+.numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.muted {
+  color: var(--text-tertiary);
+}
+
+.hint {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+}
+
+/* The legend voice. */
+.label {
+  display: block;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-tertiary);
+}
+
+/* --- page header ----------------------------------------------------------
+ * The title is the largest thing on any screen by a wide margin. An operator arriving
+ * from a terminal should be able to tell which console page they are on from the far
+ * side of a desk.
+ */
+
+.pageHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--hairline-strong);
+}
+
+.pageTitle {
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+/* The quantity, in the interface's mono voice because it is a reading off the system. */
+.pageCount {
+  margin-top: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--text-secondary);
+}
+
+.pageSubtitle {
+  margin-top: var(--space-2);
+  max-width: 68ch;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  line-height: var(--leading-snug);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   flex-shrink: 0;
 }
 
-/* A slow pulse on active states so a live page reads as live without being noisy. */
-.badgePulse {
-  animation: pulse 1.8s var(--ease) infinite;
+/* --- section --------------------------------------------------------------
+ * A titled region with no box around it: a legend, a rule, and content. This is the
+ * default grouping mechanism, and `.card` is the exception.
+ */
+
+.section {
+  margin-bottom: var(--space-8);
 }
 
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
-}
+/* --- panel (`.card`) -------------------------------------------------------
+ * Reserved for containers that represent an actual object — a task inspector, a
+ * dead-letter entry, an editor pane. Square, hairline, no shadow.
+ */
 
-.toneSuccess {
-  color: var(--state-success);
-  border-color: color-mix(in srgb, var(--state-success) 35%, transparent);
-  background: var(--state-success-dim);
-}
-
-.toneRunning {
-  color: var(--state-running);
-  border-color: color-mix(in srgb, var(--state-running) 35%, transparent);
-  background: var(--state-running-dim);
-}
-
-.toneWarn {
-  color: var(--state-warn);
-  border-color: color-mix(in srgb, var(--state-warn) 35%, transparent);
-  background: var(--state-warn-dim);
-}
-
-.toneError {
-  color: var(--state-error);
-  border-color: color-mix(in srgb, var(--state-error) 35%, transparent);
-  background: var(--state-error-dim);
-}
-
-.toneIdle {
-  color: var(--text-tertiary);
-  border-color: var(--border-default);
-  background: var(--state-idle-dim);
-}
-
-/* --- card ---------------------------------------------------------------- */
 .card {
   background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-md);
+  margin-bottom: var(--space-6);
 }
 
 .cardHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-4);
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--bg-base);
 }
 
 .cardTitle {
-  font-size: var(--text-sm);
+  font-size: var(--text-2xs);
   font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: 0.04em;
   text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-secondary);
 }
 
 .cardBody {
@@ -100,38 +147,44 @@
   padding: 0;
 }
 
-/* --- stat ---------------------------------------------------------------- */
+/* --- statistics -----------------------------------------------------------
+ * No box. A legend, then a large value. The number is the thing; drawing a rectangle
+ * around it only adds a rectangle.
+ */
+
 .statGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 1px;
-  background: var(--border-subtle);
-  border: 1px solid var(--border-subtle);
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  margin-bottom: var(--space-6);
 }
 
 .stat {
-  background: var(--bg-surface);
-  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--bg-base);
 }
 
 .statLabel {
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
-  letter-spacing: 0.05em;
+  font-size: var(--text-2xs);
+  font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-tertiary);
 }
 
 .statValue {
-  font-family: var(--font-mono);
   font-size: var(--text-xl);
   font-weight: 500;
-  line-height: 1.15;
+  line-height: 1;
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
 }
 
 .statMeta {
@@ -139,192 +192,329 @@
   color: var(--text-tertiary);
 }
 
+/* `statAccent` is emphasis, not colour — the value simply reads brighter. */
 .statAccent {
-  color: var(--accent);
+  color: var(--text-primary);
 }
+
 .statSuccess {
   color: var(--state-success);
 }
+
 .statError {
   color: var(--state-error);
 }
+
 .statWarn {
   color: var(--state-warn);
 }
 
-/* --- table --------------------------------------------------------------- */
+/* --- state marker (`.badge`) ----------------------------------------------
+ * Not a pill. A square tick of colour followed by an uppercase mono label, so the
+ * state reads as a legend on an instrument rather than as a tag on a blog post. The
+ * mark and the word are redundant with each other by design.
+ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.badgeDot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  background: currentColor;
+}
+
+.badgePulse {
+  animation: badgeBlink 1.6s steps(1, end) infinite;
+}
+
+@keyframes badgeBlink {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0.25;
+  }
+}
+
+.toneSuccess {
+  color: var(--state-success);
+}
+
+.toneRunning {
+  color: var(--state-running);
+}
+
+.toneWarn {
+  color: var(--state-warn);
+}
+
+.toneError {
+  color: var(--state-error);
+}
+
+.toneIdle {
+  color: var(--state-idle);
+}
+
+/* --- buttons ---------------------------------------------------------------
+ * Square, hairline-bordered, uppercase. The primary action inverts to bone-on-black:
+ * the strongest emphasis in the system, and it costs no colour.
+ */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  height: 30px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    background var(--duration-fast) var(--ease);
+}
+
+.button:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--hairline-bright);
+  background: var(--bg-hover);
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.buttonPrimary {
+  color: var(--text-inverted);
+  background: var(--bg-inverted);
+  border-color: var(--bg-inverted);
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  color: var(--text-inverted);
+  background: var(--interactive-hover);
+  border-color: var(--interactive-hover);
+}
+
+.buttonGhost {
+  border-color: transparent;
+  color: var(--text-tertiary);
+}
+
+.buttonGhost:hover:not(:disabled) {
+  border-color: var(--hairline-strong);
+}
+
+.buttonDanger {
+  color: var(--state-error);
+  border-color: color-mix(in srgb, var(--state-error) 40%, transparent);
+}
+
+.buttonDanger:hover:not(:disabled) {
+  color: var(--state-error);
+  background: var(--state-error-dim);
+  border-color: var(--state-error);
+}
+
+.buttonSmall {
+  height: 24px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-2xs);
+}
+
+/* --- ledger table ----------------------------------------------------------
+ * The console's main way of showing many things at once. Column heads are legends,
+ * rows are separated by hairlines rather than boxed, and rows are tall enough to be
+ * a comfortable click target while staying dense.
+ */
+
 .tableWrap {
   overflow-x: auto;
+  border-top: 1px solid var(--hairline-strong);
 }
 
 .table {
-  font-size: var(--text-sm);
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-base);
 }
 
-.table th {
-  text-align: left;
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-xs);
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  border-bottom: 1px solid var(--border-subtle);
-  white-space: nowrap;
-  background: var(--bg-surface);
-}
-
-.table td {
+.table thead th {
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-  vertical-align: middle;
+  text-align: left;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-tertiary);
   white-space: nowrap;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--bg-base);
+}
+
+.table tbody td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--hairline);
+  color: var(--text-secondary);
+  vertical-align: middle;
 }
 
 .table tbody tr:last-child td {
   border-bottom: none;
 }
 
+/* A whole row is the hit target. The hover is a brightness shift plus a rule on the
+ * leading edge — an indicator that tracks the cursor without repainting the row. */
 .tableRowLink {
   cursor: pointer;
   transition: background var(--duration-fast) var(--ease);
+}
+
+.tableRowLink td:first-child {
+  box-shadow: inset 2px 0 0 transparent;
+  transition: box-shadow var(--duration-fast) var(--ease);
 }
 
 .tableRowLink:hover {
   background: var(--bg-hover);
 }
 
-.numeric {
-  font-family: var(--font-mono);
-  text-align: right;
+.tableRowLink:hover td {
+  color: var(--text-primary);
 }
 
-.mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
+.tableRowLink:hover td:first-child {
+  box-shadow: inset 2px 0 0 var(--text-primary);
 }
 
-.muted {
-  color: var(--text-tertiary);
-}
+/* --- forms ----------------------------------------------------------------- */
 
-/* --- buttons ------------------------------------------------------------- */
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.field {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
-  padding: 6px var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-default);
-  background: var(--bg-raised);
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  white-space: nowrap;
-  transition:
-    background var(--duration-fast) var(--ease),
-    border-color var(--duration-fast) var(--ease);
+  margin-bottom: var(--space-4);
 }
 
-.button:hover:not(:disabled) {
-  background: var(--bg-overlay);
-  border-color: var(--border-strong);
-}
-
-.button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.buttonPrimary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #05070c;
-  font-weight: 600;
-}
-
-.buttonPrimary:hover:not(:disabled) {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
-}
-
-.buttonDanger {
-  color: var(--state-error);
-  border-color: color-mix(in srgb, var(--state-error) 35%, transparent);
-}
-
-.buttonDanger:hover:not(:disabled) {
-  background: var(--state-error-dim);
-  border-color: var(--state-error);
-}
-
-.buttonGhost {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-secondary);
-}
-
-.buttonGhost:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.buttonSmall {
-  padding: 3px var(--space-2);
-  font-size: var(--text-xs);
-}
-
-/* --- inputs -------------------------------------------------------------- */
 .input,
 .select,
 .textarea {
   width: 100%;
-  padding: 6px var(--space-3);
-  background: var(--bg-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-base);
   color: var(--text-primary);
-  font-size: var(--text-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-md);
   transition: border-color var(--duration-fast) var(--ease);
+}
+
+.textarea {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  resize: vertical;
+  min-height: 120px;
 }
 
 .input:focus,
 .select:focus,
 .textarea:focus {
-  border-color: var(--accent-border);
   outline: none;
+  border-color: var(--interactive-border);
 }
 
-.textarea {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.6;
-  resize: vertical;
-  min-height: 90px;
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-disabled);
 }
 
-.label {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
-  letter-spacing: 0.04em;
+/* --- key/value ------------------------------------------------------------
+ * A definition list on a fixed label column, so values align down the page. Reading
+ * a column of aligned values is the whole point; boxing each pair would destroy it.
+ */
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.kvKey {
+  font-size: var(--text-2xs);
+  font-weight: 600;
   text-transform: uppercase;
-  margin-bottom: var(--space-2);
-}
-
-.field {
-  margin-bottom: var(--space-4);
-}
-
-.hint {
-  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-label);
   color: var(--text-tertiary);
-  margin-top: var(--space-1);
+  padding-top: 2px;
 }
 
-/* --- empty & error states ------------------------------------------------ */
+.kvValue {
+  color: var(--text-primary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-6);
+}
+
+/* --- notices ---------------------------------------------------------------
+ * A left rule carries the severity. No fill, no rounded corners, no icon — the colour
+ * of the rule and the word in the message are enough.
+ */
+
+.errorBox,
+.warnBox {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  border-radius: var(--radius-md);
+}
+
+.errorBox {
+  color: var(--state-error);
+  background: var(--state-error-dim);
+  border-left: 2px solid var(--state-error);
+}
+
+.warnBox {
+  color: var(--state-warn);
+  background: var(--state-warn-dim);
+  border-left: 2px solid var(--state-warn);
+}
+
+/* --- empty state ----------------------------------------------------------- */
+
 .empty {
   padding: var(--space-12) var(--space-4);
   text-align: center;
@@ -333,113 +523,42 @@
 }
 
 .emptyTitle {
-  color: var(--text-secondary);
   font-size: var(--text-md);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-secondary);
   margin-bottom: var(--space-2);
 }
 
-.errorBox {
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--state-error) 30%, transparent);
-  background: var(--state-error-dim);
-  border-radius: var(--radius-sm);
-  color: var(--state-error);
-  font-size: var(--text-sm);
-}
+/* --- code ------------------------------------------------------------------ */
 
-.warnBox {
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--state-warn) 30%, transparent);
-  background: var(--state-warn-dim);
-  border-radius: var(--radius-sm);
-  color: var(--state-warn);
-  font-size: var(--text-sm);
-}
-
-/* --- key/value list ------------------------------------------------------ */
-.kv {
-  display: grid;
-  grid-template-columns: minmax(96px, auto) 1fr;
-  gap: var(--space-2) var(--space-4);
-  font-size: var(--text-sm);
-}
-
-.kvKey {
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding-top: 1px;
-}
-
-.kvValue {
-  color: var(--text-primary);
-  word-break: break-word;
-}
-
-/* --- code block ---------------------------------------------------------- */
 .code {
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  margin: 0;
   padding: var(--space-3);
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.6;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
   color: var(--text-secondary);
+  background: var(--bg-input);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
   overflow-x: auto;
   white-space: pre;
-  max-height: 320px;
-  overflow-y: auto;
-  margin: 0;
 }
 
-/* --- page furniture ------------------------------------------------------ */
-.pageHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
-  flex-wrap: wrap;
-}
-
-.pageTitle {
-  font-size: var(--text-xl);
-  font-weight: 600;
-}
-
-.pageSubtitle {
-  color: var(--text-tertiary);
-  font-size: var(--text-sm);
-  margin-top: var(--space-1);
-}
-
-.actions {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.section {
-  margin-bottom: var(--space-6);
-}
-
-.grid2 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: var(--space-4);
-}
+/* --- spinner ---------------------------------------------------------------
+ * A rotating arc, achromatic like everything else in the chrome.
+ */
 
 .spinner {
+  display: inline-block;
   width: 12px;
   height: 12px;
-  border: 2px solid var(--border-strong);
-  border-top-color: var(--accent);
+  border: 1.5px solid var(--hairline-bright);
+  border-top-color: var(--text-secondary);
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  display: inline-block;
+  animation: spin 700ms linear infinite;
 }
 
 @keyframes spin {

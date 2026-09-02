@@ -141,7 +141,8 @@ test.describe('run execution', () => {
     // The run reaches SUCCEEDED without the page reloading — this is the SSE path.
     const main = page.getByRole('main');
     await expect(main.getByText('Succeeded').first()).toBeVisible({ timeout: 60_000 });
-    await expect(main.getByText('5/5 tasks')).toBeVisible();
+    // Progress is reported by the run readout as value/total.
+    await expect(main.getByText('5/5', { exact: true })).toBeVisible();
     await expect(page.locator('.react-flow__node')).toHaveCount(5);
 
     // The timeline is populated from the durable event log.
@@ -202,7 +203,7 @@ test.describe('run execution', () => {
 
     // The run fails, and downstream work is cancelled rather than left hanging.
     await expect(page.getByRole('main').getByText('Failed').first()).toBeVisible();
-    await expect(page.getByRole('main').getByText(/dead-lettered/)).toBeVisible();
+    await expect(page.getByRole('main').getByText(/dead-lettered/i)).toBeVisible();
   });
 
   test('filters the run list by state', async ({ page }) => {
@@ -256,10 +257,12 @@ test.describe('operations', () => {
   test('reports component health and links to the observability stack', async ({ page }) => {
     await page.goto('/console/system');
 
-    const components = page.locator('section').filter({ hasText: 'COMPONENTS' }).first();
-    await expect(components.getByText('PostgreSQL')).toBeVisible();
-    await expect(components.getByText('Redis')).toBeVisible();
-    await expect(components.getByText('Outbox', { exact: true })).toBeVisible();
+    const runtime = page.locator('section').filter({ hasText: 'Runtime' }).first();
+    await expect(runtime.getByText('PostgreSQL')).toBeVisible();
+    await expect(runtime.getByText('Redis')).toBeVisible();
+
+    const reliability = page.locator('section').filter({ hasText: 'Reliability' }).first();
+    await expect(reliability.getByText('Outbox pending')).toBeVisible();
 
     // Metric names shown here must be the ones actually exported by the services.
     await expect(page.getByText('forge_outbox_lag_seconds')).toBeVisible();

@@ -25,7 +25,8 @@ export default async function WorkflowsPage(): Promise<ReactNode> {
     <>
       <PageHeader
         title="Workflows"
-        subtitle="Definitions and their execution history"
+        count={items.length + (items.length === 1 ? ' definition' : ' definitions')}
+        subtitle="Immutable, content-addressed definitions and their execution history."
         actions={
           <Link href="/console/workflows/new" className={ui.button + ' ' + ui.buttonPrimary}>
             New workflow

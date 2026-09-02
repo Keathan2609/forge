@@ -84,6 +84,10 @@ export function RunView({
     }
   };
 
+  // How many distinct workers touched this run — the one number that makes the
+  // distribution visible without opening the fleet page.
+  const workerCount = new Set((run.tasks ?? []).map((t) => t.workerId).filter(Boolean)).size;
+
   return (
     <>
       <PageHeader
@@ -126,22 +130,59 @@ export function RunView({
         </div>
       )}
 
-      <div className={styles.summary}>
-        <StateBadge state={run.state} />
-        <span className={ui.muted}>
-          {run.counts.succeeded}/{run.counts.total} tasks
-        </span>
-        {run.counts.running > 0 && <span className={ui.muted}>{run.counts.running} running</span>}
+      {/* The run's vital signs, as an instrument readout rather than a row of pills. The
+          figures are large and monospaced so duration, progress and fan-out can be read
+          from the graph without moving your eyes back to prose. */}
+      <div className={styles.readout}>
+        <div className={styles.readoutItem}>
+          <span className={styles.readoutLabel}>State</span>
+          <span className={styles.readoutValue}>
+            <StateBadge state={run.state} />
+          </span>
+        </div>
+        <div className={styles.readoutItem}>
+          <span className={styles.readoutLabel}>Duration</span>
+          <span className={styles.readoutValue}>{formatDuration(run.durationMs)}</span>
+        </div>
+        <div className={styles.readoutItem}>
+          <span className={styles.readoutLabel}>Tasks</span>
+          <span className={styles.readoutValue}>
+            {run.counts.succeeded}
+            <span className={styles.readoutOf}>/{run.counts.total}</span>
+          </span>
+        </div>
+        <div className={styles.readoutItem}>
+          <span className={styles.readoutLabel}>Workers</span>
+          <span className={styles.readoutValue}>{workerCount}</span>
+        </div>
+        {run.counts.running > 0 && (
+          <div className={styles.readoutItem}>
+            <span className={styles.readoutLabel}>Running</span>
+            <span className={styles.readoutValue}>{run.counts.running}</span>
+          </div>
+        )}
         {run.counts.retrying > 0 && (
-          <span className={ui.muted}>{run.counts.retrying} retrying</span>
+          <div className={styles.readoutItem}>
+            <span className={styles.readoutLabel}>Retrying</span>
+            <span className={styles.readoutValue + ' ' + styles.readoutWarn}>
+              {run.counts.retrying}
+            </span>
+          </div>
         )}
         {run.counts.deadLettered > 0 && (
-          <span style={{ color: 'var(--state-error)' }}>
-            {run.counts.deadLettered} dead-lettered
-          </span>
+          <div className={styles.readoutItem}>
+            <span className={styles.readoutLabel}>Dead-lettered</span>
+            <span className={styles.readoutValue + ' ' + styles.readoutError}>
+              {run.counts.deadLettered}
+            </span>
+          </div>
         )}
-        {run.counts.skipped > 0 && <span className={ui.muted}>{run.counts.skipped} skipped</span>}
-        <span className={ui.muted}>{formatDuration(run.durationMs)}</span>
+        {run.counts.skipped > 0 && (
+          <div className={styles.readoutItem}>
+            <span className={styles.readoutLabel}>Skipped</span>
+            <span className={styles.readoutValue}>{run.counts.skipped}</span>
+          </div>
+        )}
       </div>
 
       <div className={styles.layout}>

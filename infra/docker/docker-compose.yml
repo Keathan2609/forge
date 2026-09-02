@@ -124,7 +124,10 @@ services:
       DATABASE_URL: postgresql://forge:forge@postgres:5432/forge?schema=public
       REDIS_URL: redis://redis:6379
       FORGE_API_PORT: '4000'
-      FORGE_CORS_ORIGIN: http://localhost:3000
+      # The containerised console, plus a `next dev` server on 3100 for working on the
+      # console while the rest of the stack keeps running in containers. Port 3000 is
+      # taken by the `web` service, so the dev server cannot reuse it.
+      FORGE_CORS_ORIGIN: http://localhost:3000,http://localhost:3100
       FORGE_AUTH_ENABLED: 'false'
       FORGE_DEMO_MODE: 'false'
       FORGE_LOG_LEVEL: info
