@@ -1,0 +1,41 @@
+# Schema migration, run to completion before the services start.
+#
+# `prisma migrate deploy` applies committed migrations and never generates new ones —
+# the only form that is safe to run automatically. A Job (not an initContainer) so it
+# runs once per release rather than once per pod: N replicas racing to migrate is how
+# you get a half-applied schema.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: forge-migrate
+  namespace: forge
+  labels: { app.kubernetes.io/component: migrate, app.kubernetes.io/part-of: forge }
+  annotations:
+    # With Argo CD or Helm this becomes a pre-sync/pre-install hook.
+    forge.dev/run-before: services
+spec:
+  backoffLimit: 3
+  # Cleaned up automatically so completed Jobs do not accumulate across releases.
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: migrate
+        app.kubernetes.io/part-of: forge
+    spec:
+      restartPolicy: Never
+      securityContext: { runAsNonRoot: true, runAsUser: 1000 }
+      containers:
+        - name: migrate
+          image: forge/migrator:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: forge-secrets, key: DATABASE_URL }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ['ALL'] }

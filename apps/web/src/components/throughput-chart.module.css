@@ -1,0 +1,85 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.svg {
+  width: 100%;
+  height: 84px;
+  display: block;
+  overflow: visible;
+}
+
+.succeeded {
+  fill: var(--state-success);
+  opacity: 0.85;
+}
+
+.failed {
+  fill: var(--state-error);
+  opacity: 0.9;
+}
+
+.other {
+  fill: var(--state-running);
+  opacity: 0.55;
+}
+
+.hitArea {
+  fill: transparent;
+  transition: fill var(--duration-fast) var(--ease);
+}
+
+.hitArea:hover {
+  fill: rgba(255, 255, 255, 0.05);
+}
+
+.axis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--text-disabled);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-tertiary);
+}
+
+.swatchSucceeded,
+.swatchFailed {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  display: inline-block;
+}
+
+.swatchSucceeded {
+  background: var(--state-success);
+}
+
+.swatchFailed {
+  background: var(--state-error);
+}
+
+.peak {
+  font-family: var(--font-mono);
+  color: var(--text-disabled);
+}
+
+.empty {
+  padding: var(--space-8) 0;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}

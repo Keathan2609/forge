@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-web
+  namespace: forge
+  labels: { app.kubernetes.io/component: web, app.kubernetes.io/part-of: forge }
+spec:
+  selector: { app.kubernetes.io/component: web }
+  ports: [{ port: 3000, targetPort: 3000, name: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forge-web
+  namespace: forge
+  labels: { app.kubernetes.io/component: web, app.kubernetes.io/part-of: forge }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app.kubernetes.io/component: web }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: web
+        app.kubernetes.io/part-of: forge
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000 }
+      containers:
+        - name: web
+          image: forge/web:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3000, name: http }]
+          env:
+            # Server-side rendering reaches the API over the cluster network…
+            - name: FORGE_API_INTERNAL_URL
+              value: http://forge-api:4000
+            # …while the browser needs a URL it can actually resolve. Setting only the
+            # internal one is the classic containerised-frontend bug: SSR works and every
+            # client-side fetch fails.
+            - name: NEXT_PUBLIC_FORGE_API_URL
+              value: https://forge.example.com/api
+            - name: FORGE_API_KEY_WEB
+              valueFrom:
+                secretKeyRef: { name: forge-secrets, key: FORGE_API_KEY }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          livenessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ['ALL'] }

@@ -1,0 +1,111 @@
+{
+  "key": "crash-recovery-demo",
+  "name": "Crash Recovery Demo",
+  "description": "A worker is killed mid-task. The lease expires, the control plane requeues the work and another worker completes it.",
+  "timeoutMs": 300000,
+  "defaultRetryPolicy": {
+    "maxAttempts": 3,
+    "initialDelayMs": 1000,
+    "maxDelayMs": 60000,
+    "multiplier": 2,
+    "jitter": true,
+    "nonRetryableErrors": []
+  },
+  "inputSchema": {},
+  "output": {
+    "recovered": {
+      "from": "$.tasks.after-crash.output"
+    }
+  },
+  "nodes": [
+    {
+      "key": "before-crash",
+      "name": "Before Crash",
+      "type": "delay",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 400
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Ordinary work that completes normally.",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "key": "crash-step",
+      "name": "Crash Step",
+      "type": "simulate.crash",
+      "queue": "default",
+      "timeoutMs": 120000,
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "initialDelayMs": 500,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "afterMs": 800,
+        "crashUntilAttempt": 1
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Kills its worker with SIGKILL on the first attempt. Recovery is driven by lease expiry; the recovered attempt completes normally.",
+      "position": {
+        "x": 260,
+        "y": 0
+      }
+    },
+    {
+      "key": "after-crash",
+      "name": "After Crash",
+      "type": "noop",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {},
+      "input": {},
+      "metadata": {},
+      "description": "Proves the run continued past the crash.",
+      "position": {
+        "x": 520,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "before-crash",
+      "to": "crash-step"
+    },
+    {
+      "from": "crash-step",
+      "to": "after-crash"
+    }
+  ],
+  "metadata": {
+    "category": "demo",
+    "demonstrates": "worker crash, lease expiry, task recovery",
+    "requiresDemoMode": true
+  }
+}

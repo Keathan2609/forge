@@ -1,0 +1,184 @@
+{
+  "key": "media-pipeline",
+  "name": "Media Processing Pipeline",
+  "description": "Ingests an upload then extracts metadata, generates a thumbnail and transcodes a preview concurrently. Demonstrates wide fan-out and queue routing.",
+  "timeoutMs": 900000,
+  "defaultRetryPolicy": {
+    "maxAttempts": 3,
+    "initialDelayMs": 1000,
+    "maxDelayMs": 60000,
+    "multiplier": 2,
+    "jitter": true,
+    "nonRetryableErrors": []
+  },
+  "inputSchema": {
+    "assetId": "string",
+    "filename": "string",
+    "generatePreview": "boolean"
+  },
+  "output": {
+    "assetId": {
+      "from": "$.input.assetId"
+    },
+    "metadata": {
+      "from": "$.tasks.extract-metadata.output"
+    }
+  },
+  "nodes": [
+    {
+      "key": "upload",
+      "name": "Upload",
+      "type": "delay",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 600
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Receive and persist the source asset.",
+      "position": {
+        "x": 0,
+        "y": 130
+      }
+    },
+    {
+      "key": "extract-metadata",
+      "name": "Extract Metadata",
+      "type": "compute",
+      "queue": "media",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "operation": "sum",
+        "values": [1, 2, 3, 4]
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Probe the asset for codec and duration information.",
+      "position": {
+        "x": 260,
+        "y": 0
+      }
+    },
+    {
+      "key": "generate-thumbnail",
+      "name": "Generate Thumbnail",
+      "type": "delay",
+      "queue": "media",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 1100
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Render a poster frame.",
+      "position": {
+        "x": 260,
+        "y": 130
+      }
+    },
+    {
+      "key": "transcode-preview",
+      "name": "Transcode Preview",
+      "type": "delay",
+      "queue": "media",
+      "timeoutMs": 120000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 1800
+      },
+      "input": {},
+      "metadata": {},
+      "condition": "$.input.generatePreview == true",
+      "description": "Produce a low-bitrate preview. Skipped when not requested.",
+      "position": {
+        "x": 260,
+        "y": 260
+      }
+    },
+    {
+      "key": "finalise",
+      "name": "Finalise",
+      "type": "noop",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {},
+      "input": {},
+      "metadata": {},
+      "description": "Join point: publishes the asset once every branch has resolved.",
+      "position": {
+        "x": 520,
+        "y": 130
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "upload",
+      "to": "extract-metadata"
+    },
+    {
+      "from": "upload",
+      "to": "generate-thumbnail"
+    },
+    {
+      "from": "upload",
+      "to": "transcode-preview"
+    },
+    {
+      "from": "extract-metadata",
+      "to": "finalise"
+    },
+    {
+      "from": "generate-thumbnail",
+      "to": "finalise"
+    },
+    {
+      "from": "transcode-preview",
+      "to": "finalise"
+    }
+  ],
+  "metadata": {
+    "category": "media",
+    "demonstrates": "wide fan-out, queue routing, branch pruning"
+  }
+}

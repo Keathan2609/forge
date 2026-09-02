@@ -1,0 +1,55 @@
+# dependencies
+node_modules/
+.pnp.*
+.yarn/
+
+# build output
+dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+.turbo/
+
+# environment
+.env
+.env.*
+!.env.example
+
+# local data volumes
+.data/
+pgdata/
+redisdata/
+*.sqlite
+*.sqlite3
+
+# logs
+logs/
+*.log
+# Where the local dev scripts tee service output; useful while running the stack,
+# never something to commit.
+.runlogs/
+npm-debug.log*
+pnpm-debug.log*
+
+# test / coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# editors / os
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# secrets — never commit
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/

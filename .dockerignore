@@ -1,0 +1,35 @@
+# Anything not needed to build. Keeping the context small makes every build faster and
+# guarantees a stray local .env can never end up in an image layer.
+node_modules
+**/node_modules
+dist
+**/dist
+# TypeScript's incremental build state. This is the important one: `dist` is ignored, so
+# without this tsc would read a tsbuildinfo copied from the host, conclude the output is
+# already up to date, and emit nothing — leaving an empty `dist` and failing every package
+# that imports it. Build state must be derived inside the image, never inherited from it.
+*.tsbuildinfo
+**/*.tsbuildinfo
+.next
+**/.next
+.turbo
+**/.turbo
+coverage
+**/coverage
+
+.git
+.github
+.vscode
+.idea
+
+.env
+.env.*
+!.env.example
+
+.runlogs
+*.log
+playwright-report
+test-results
+docs
+README.md
+CONTRIBUTING.md

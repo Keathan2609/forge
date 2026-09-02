@@ -1,0 +1,180 @@
+@import './tokens.css';
+
+/* Reset — only what actually needs resetting. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Tabular figures everywhere: durations and counts must not jitter as they update. */
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+code,
+pre,
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* A single visible focus treatment, applied only for keyboard navigation. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Scrollbars styled to recede rather than announce themselves. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 5px;
+  border: 2px solid var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+::selection {
+  background: var(--accent-dim);
+}
+
+/* --- @xyflow/react overrides --------------------------------------------
+ * The library ships a light theme with rounded pastel defaults. These pull it into
+ * the console's palette; node visuals themselves are defined by our own components.
+ */
+.react-flow {
+  background: var(--bg-base);
+}
+
+.react-flow__edge-path {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke: var(--state-running);
+}
+
+.react-flow__arrowhead polyline,
+.react-flow__arrowhead path {
+  stroke: var(--border-strong);
+  fill: var(--border-strong);
+}
+
+.react-flow__handle {
+  width: 6px;
+  height: 6px;
+  background: var(--border-strong);
+  border: none;
+}
+
+.react-flow__controls {
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border-subtle);
+  fill: var(--text-secondary);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg-overlay);
+  fill: var(--text-primary);
+}
+
+.react-flow__minimap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.react-flow__attribution {
+  background: transparent;
+  color: var(--text-disabled);
+  font-size: 10px;
+}
+
+.react-flow__background {
+  color: var(--border-subtle);
+}

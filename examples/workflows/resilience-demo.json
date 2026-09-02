@@ -1,0 +1,174 @@
+{
+  "key": "resilience-demo",
+  "name": "Resilience Demo",
+  "description": "Deliberately unreliable workflow used to demonstrate retries, exponential backoff, timeouts and the dead-letter queue.",
+  "timeoutMs": 300000,
+  "defaultRetryPolicy": {
+    "maxAttempts": 3,
+    "initialDelayMs": 1000,
+    "maxDelayMs": 60000,
+    "multiplier": 2,
+    "jitter": true,
+    "nonRetryableErrors": []
+  },
+  "inputSchema": {
+    "scenario": "string — retry | timeout | dead-letter | crash"
+  },
+  "output": {},
+  "nodes": [
+    {
+      "key": "start",
+      "name": "Start",
+      "type": "noop",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {},
+      "input": {},
+      "metadata": {},
+      "description": "Entry point.",
+      "position": {
+        "x": 0,
+        "y": 130
+      }
+    },
+    {
+      "key": "flaky-step",
+      "name": "Flaky Step",
+      "type": "simulate.flaky",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 5,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": false,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "succeedOnAttempt": 3,
+        "durationMs": 200
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Fails twice, then succeeds — produces a real retry sequence.",
+      "position": {
+        "x": 260,
+        "y": 0
+      }
+    },
+    {
+      "key": "slow-step",
+      "name": "Slow Step",
+      "type": "simulate.slow",
+      "queue": "default",
+      "timeoutMs": 60000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 20000
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Runs longer than one lease TTL, exercising lease renewal.",
+      "position": {
+        "x": 260,
+        "y": 130
+      }
+    },
+    {
+      "key": "always-fails",
+      "name": "Always Fails",
+      "type": "simulate.fail",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 500,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": false,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "message": "this task always fails, by design",
+        "code": "SIMULATED_FAILURE"
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Exhausts its retry budget and is dead-lettered.",
+      "position": {
+        "x": 260,
+        "y": 260
+      }
+    },
+    {
+      "key": "never-runs",
+      "name": "Never Runs",
+      "type": "noop",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {},
+      "input": {},
+      "metadata": {},
+      "description": "Cancelled by failure propagation once `always-fails` is dead-lettered.",
+      "position": {
+        "x": 520,
+        "y": 130
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "start",
+      "to": "flaky-step"
+    },
+    {
+      "from": "start",
+      "to": "slow-step"
+    },
+    {
+      "from": "start",
+      "to": "always-fails"
+    },
+    {
+      "from": "flaky-step",
+      "to": "never-runs"
+    },
+    {
+      "from": "slow-step",
+      "to": "never-runs"
+    },
+    {
+      "from": "always-fails",
+      "to": "never-runs"
+    }
+  ],
+  "metadata": {
+    "category": "demo",
+    "demonstrates": "retries, exponential backoff, dead letters, failure propagation",
+    "requiresDemoMode": true
+  }
+}

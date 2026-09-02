@@ -1,0 +1,40 @@
+{
+  "name": "@forge/database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prisma schema and data-access helpers. PostgreSQL is the durable source of truth for all execution state.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "node ../../scripts/with-env.mjs prisma migrate dev",
+    "deploy": "node ../../scripts/with-env.mjs prisma migrate deploy",
+    "push": "node ../../scripts/with-env.mjs prisma db push --skip-generate",
+    "reset": "node ../../scripts/with-env.mjs prisma migrate reset --force",
+    "studio": "node ../../scripts/with-env.mjs prisma studio",
+    "seed": "node ../../scripts/with-env.mjs tsx src/seed.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "clean": "rimraf dist .turbo",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.0",
+    "@forge/contracts": "workspace:*",
+    "@forge/engine": "workspace:*",
+    "cron-parser": "^4.9.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.2.0",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

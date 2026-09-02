@@ -1,0 +1,82 @@
+# The control plane: outbox publisher, run advancer, lease reaper, retry sweeper and
+# cron scheduler.
+#
+# Two replicas rather than one. Every loop is safe to run concurrently — the advancer
+# locks the run row, the outbox publisher uses FOR UPDATE SKIP LOCKED, and the cron
+# scheduler claims each occurrence with a conditional update — so this is about
+# availability during a node drain, not throughput.
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-scheduler
+  namespace: forge
+  labels: { app.kubernetes.io/component: scheduler, app.kubernetes.io/part-of: forge }
+  annotations:
+    prometheus.io/scrape: 'true'
+    prometheus.io/path: /metrics
+    prometheus.io/port: '9102'
+spec:
+  clusterIP: None
+  selector: { app.kubernetes.io/component: scheduler }
+  ports: [{ port: 9102, targetPort: 9102, name: metrics }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forge-scheduler
+  namespace: forge
+  labels: { app.kubernetes.io/component: scheduler, app.kubernetes.io/part-of: forge }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app.kubernetes.io/component: scheduler }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: scheduler
+        app.kubernetes.io/part-of: forge
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000 }
+      containers:
+        - name: scheduler
+          image: forge/scheduler:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 9102, name: metrics }]
+          envFrom:
+            - configMapRef: { name: forge-config }
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: forge-secrets, key: DATABASE_URL }
+          resources:
+            requests: { cpu: 200m, memory: 384Mi }
+            limits: { cpu: '1', memory: 768Mi }
+          livenessProbe:
+            httpGet: { path: /health, port: 9102 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          # `/health` on the control plane reports degraded when outbox lag exceeds 30s,
+          # which is the one failure that is invisible in every other signal.
+          readinessProbe:
+            httpGet: { path: /health, port: 9102 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ['ALL'] }
+      # Loops stop after their current iteration, so no transaction is interrupted.
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: forge-scheduler
+  namespace: forge
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app.kubernetes.io/component: scheduler }

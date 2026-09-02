@@ -1,0 +1,507 @@
+// FORGE — durable execution schema.
+//
+// PostgreSQL is the source of truth for every piece of execution state. Redis carries
+// messages; if Redis is wiped, this schema alone is sufficient to reconstruct exactly
+// what should happen next for every in-flight run.
+//
+// Indexing philosophy: every index here backs a query that actually runs in a hot loop
+// (the reaper's expired-lease scan, the retry sweeper's due-task scan, the outbox
+// publisher's pending scan, the console's run list). Indexes that only serve
+// hypothetical queries are omitted — they cost write throughput on the busiest tables.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums — mirrored in @forge/contracts and parity-tested at build time.
+// ---------------------------------------------------------------------------
+
+enum WorkflowRunState {
+  PENDING
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  TIMED_OUT
+}
+
+enum TaskRunState {
+  PENDING
+  BLOCKED
+  READY
+  QUEUED
+  RUNNING
+  RETRYING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  TIMED_OUT
+  DEAD_LETTERED
+  SKIPPED
+}
+
+enum TaskAttemptState {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  TIMED_OUT
+  ABANDONED
+  CANCELLED
+}
+
+enum WorkerState {
+  ONLINE
+  DRAINING
+  OFFLINE
+  UNRESPONSIVE
+}
+
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+enum OutboxEventType {
+  TASK_DISPATCH
+  RUN_ADVANCE
+  EVENT_BROADCAST
+}
+
+enum DeadLetterStatus {
+  OPEN
+  REPLAYED
+  ACKNOWLEDGED
+}
+
+// ---------------------------------------------------------------------------
+// Definitions and versions
+// ---------------------------------------------------------------------------
+
+/// The stable identity of a workflow. Its executable content lives in versions.
+model WorkflowDefinition {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  name        String
+  description String?
+  /// Denormalised pointer to the newest version, so triggering a run by key is one read.
+  latestVersion Int    @default(0)
+  archived    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions  WorkflowVersion[]
+  schedules WorkflowSchedule[]
+  runs      WorkflowRun[]
+
+  @@index([archived, updatedAt])
+  @@map("workflow_definition")
+}
+
+/// An immutable snapshot of a workflow's graph.
+///
+/// Nothing ever updates a version. Editing a workflow creates a new one, which is what
+/// guarantees that a run started an hour ago still executes the graph it started with.
+model WorkflowVersion {
+  id           String   @id @default(uuid()) @db.Uuid
+  definitionId String   @db.Uuid
+  version      Int
+  /// SHA-256 of the canonicalised definition. Re-saving an unchanged graph is a no-op.
+  checksum     String
+  /// The authoritative executable document, validated by WorkflowDefinitionSchema.
+  definition   Json
+  changelog    String?
+  createdBy    String   @default("system")
+  createdAt    DateTime @default(now())
+
+  definitionRef WorkflowDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  nodes         WorkflowNode[]
+  edges         WorkflowEdge[]
+  runs          WorkflowRun[]
+
+  @@unique([definitionId, version])
+  /// Saving a byte-identical definition returns the existing version instead of
+  /// inflating the version history with no-op changes.
+  @@unique([definitionId, checksum])
+  @@map("workflow_version")
+}
+
+/// Normalised projection of the version's nodes.
+///
+/// The JSON in WorkflowVersion.definition stays authoritative for execution (one read
+/// gets the whole graph); these rows exist so operational questions — "which workflows
+/// use handler type `charge.card`?" — are indexed queries rather than JSON scans.
+model WorkflowNode {
+  id        String  @id @default(uuid()) @db.Uuid
+  versionId String  @db.Uuid
+  key       String
+  name      String
+  type      String
+  queue     String  @default("default")
+  timeoutMs Int
+  maxAttempts Int
+  condition String?
+  config    Json    @default("{}")
+  position  Json?
+
+  version WorkflowVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, key])
+  @@index([type])
+  @@index([queue])
+  @@map("workflow_node")
+}
+
+model WorkflowEdge {
+  id        String  @id @default(uuid()) @db.Uuid
+  versionId String  @db.Uuid
+  fromKey   String
+  toKey     String
+  condition String?
+
+  version WorkflowVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, fromKey, toKey])
+  @@index([versionId])
+  @@map("workflow_edge")
+}
+
+// ---------------------------------------------------------------------------
+// Scheduling
+// ---------------------------------------------------------------------------
+
+model WorkflowSchedule {
+  id           String    @id @default(uuid()) @db.Uuid
+  definitionId String    @db.Uuid
+  name         String
+  /// Standard 5-field cron. Exactly one of cron/runAt is set.
+  cron         String?
+  runAt        DateTime?
+  timezone     String    @default("UTC")
+  input        Json      @default("{}")
+  enabled      Boolean   @default(true)
+  /// Precomputed so the scheduler's hot loop is an indexed range scan, not a
+  /// cron-parse of every row on every tick.
+  nextRunAt    DateTime?
+  lastRunAt    DateTime?
+  lastRunId    String?   @db.Uuid
+  /// Guards against two scheduler instances firing the same occurrence.
+  lastFiredKey String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  definition WorkflowDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, nextRunAt])
+  @@index([definitionId])
+  @@map("workflow_schedule")
+}
+
+// ---------------------------------------------------------------------------
+// Execution
+// ---------------------------------------------------------------------------
+
+model WorkflowRun {
+  id           String           @id @default(uuid()) @db.Uuid
+  definitionId String           @db.Uuid
+  versionId    String           @db.Uuid
+  /// Denormalised from the definition so run lists filter without a join.
+  workflowKey  String
+  workflowName String
+  version      Int
+  state        WorkflowRunState @default(PENDING)
+  input        Json             @default("{}")
+  output       Json?
+  errorMessage String?
+  metadata     Json             @default("{}")
+  triggeredBy  String           @default("api")
+  idempotencyKey String?
+  scheduleId   String?          @db.Uuid
+  /// Set to true by the cancel endpoint. Workers poll it; the control plane drains
+  /// the run on its next advance. Cancellation is cooperative by design — see
+  /// docs/adr/005-delivery-semantics.md.
+  cancelRequested Boolean       @default(false)
+  cancelReason String?
+  timeoutMs    Int
+  traceId      String?
+  /// Monotonic per-run event counter. Incremented inside the same transaction that
+  /// writes the event, giving subscribers a total order they can resume from.
+  eventSeq     Int              @default(0)
+  createdAt    DateTime         @default(now())
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  durationMs   Int?
+
+  definition WorkflowDefinition @relation(fields: [definitionId], references: [id])
+  versionRef WorkflowVersion    @relation(fields: [versionId], references: [id])
+  tasks      TaskRun[]
+  events     ExecutionEvent[]
+  deadLetters DeadLetter[]
+
+  /// Console run list: "most recent runs, optionally filtered by state".
+  @@index([state, createdAt(sort: Desc)])
+  @@index([workflowKey, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  /// The run-timeout sweeper scans only unfinished runs.
+  @@index([state, startedAt])
+  @@index([scheduleId])
+  @@map("workflow_run")
+}
+
+model TaskRun {
+  id            String       @id @default(uuid()) @db.Uuid
+  workflowRunId String       @db.Uuid
+  /// Stable key from the definition. Unique within a run — this is what makes task
+  /// creation idempotent and lets a replay target a node by name.
+  nodeKey       String
+  name          String
+  type          String
+  queue         String       @default("default")
+  state         TaskRunState @default(PENDING)
+  /// Physical attempts started. Monotonic; `attempts + 1` is the next attempt number.
+  attempts      Int          @default(0)
+  /// Attempts that failed for *application* reasons. This — not `attempts` — is what
+  /// the retry budget is measured against, so a worker crash does not consume a retry
+  /// the application never got. See docs/adr/004-worker-leases.md.
+  failures      Int          @default(0)
+  /// Attempts reclaimed after a lease expired. Surfaced in the console and as the
+  /// `forge_worker_lease_recoveries_total` metric.
+  recoveries    Int          @default(0)
+  maxAttempts   Int
+  dependsOn     String[]     @default([])
+  retryPolicy   Json
+  input         Json?
+  output        Json?
+  errorCode     String?
+  errorMessage  String?
+  timeoutMs     Int
+  /// Set while RETRYING; the retry sweeper picks up rows whose backoff has elapsed.
+  nextAttemptAt DateTime?
+  workerId      String?
+  traceId       String?
+  queuedAt      DateTime?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  durationMs    Int?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  run      WorkflowRun   @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  attemptRecords TaskAttempt[]
+  leases   WorkerLease[]
+  deadLetter DeadLetter?
+
+  @@unique([workflowRunId, nodeKey])
+  /// Retry sweeper: WHERE state = 'RETRYING' AND next_attempt_at <= now().
+  @@index([state, nextAttemptAt])
+  /// Run detail page and the advance path load all tasks for one run.
+  @@index([workflowRunId, state])
+  /// Queue-depth metrics per logical queue.
+  @@index([state, queue])
+  @@index([workerId, state])
+  @@map("task_run")
+}
+
+/// One physical execution of a task by one worker.
+///
+/// Attempts are append-only. A task with three attempts has three rows, each with its
+/// own worker, timing and error — which is what makes the retry history in the console
+/// real data rather than a reconstruction.
+model TaskAttempt {
+  id           String           @id @default(uuid()) @db.Uuid
+  taskRunId    String           @db.Uuid
+  attemptNumber Int
+  state        TaskAttemptState @default(RUNNING)
+  workerId     String?
+  /// The dispatch message that produced this attempt. Two deliveries of the same
+  /// dispatch can never create two attempts — see the unique constraint below.
+  dispatchId   String?          @db.Uuid
+  input        Json?
+  output       Json?
+  errorCode    String?
+  errorMessage String?
+  errorStack   String?
+  traceId      String?
+  spanId       String?
+  startedAt    DateTime         @default(now())
+  finishedAt   DateTime?
+  durationMs   Int?
+
+  task TaskRun @relation(fields: [taskRunId], references: [id], onDelete: Cascade)
+
+  /// The core idempotency guard: attempt N of a task exists at most once, so a
+  /// duplicated dispatch loses the insert race instead of double-executing.
+  @@unique([taskRunId, attemptNumber])
+  @@index([workerId, startedAt(sort: Desc)])
+  @@index([state, startedAt])
+  @@map("task_attempt")
+}
+
+// ---------------------------------------------------------------------------
+// Fleet
+// ---------------------------------------------------------------------------
+
+model Worker {
+  /// Worker-generated UUID, stable for the lifetime of the process.
+  id              String      @id @db.Uuid
+  name            String
+  hostname        String
+  pid             Int
+  state           WorkerState @default(ONLINE)
+  version         String
+  queues          String[]    @default([])
+  capabilities    String[]    @default([])
+  concurrency     Int         @default(1)
+  activeTasks     Int         @default(0)
+  tasksCompleted  Int         @default(0)
+  tasksFailed     Int         @default(0)
+  registeredAt    DateTime    @default(now())
+  lastHeartbeatAt DateTime    @default(now())
+  shutdownAt      DateTime?
+
+  leases WorkerLease[]
+
+  /// Liveness sweep: WHERE state = 'ONLINE' AND last_heartbeat_at < cutoff.
+  @@index([state, lastHeartbeatAt])
+  @@map("worker")
+}
+
+/// A time-bounded, exclusive claim by one worker on one task attempt.
+///
+/// This is what makes worker death recoverable. A crashed worker stops renewing; the
+/// lease expires; the reaper marks the attempt ABANDONED and returns the task to the
+/// queue. No human intervention, and no task stuck in RUNNING forever.
+model WorkerLease {
+  id            String    @id @default(uuid()) @db.Uuid
+  taskRunId     String    @db.Uuid
+  attemptNumber Int
+  workerId      String    @db.Uuid
+  acquiredAt    DateTime  @default(now())
+  expiresAt     DateTime
+  heartbeatAt   DateTime  @default(now())
+  renewals      Int       @default(0)
+  releasedAt    DateTime?
+  releaseReason String?
+
+  task   TaskRun @relation(fields: [taskRunId], references: [id], onDelete: Cascade)
+  worker Worker  @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  /// One lease per attempt, forever. Combined with the TaskAttempt unique constraint,
+  /// this makes "two workers running attempt 2 of the same task" unrepresentable.
+  @@unique([taskRunId, attemptNumber])
+  /// Reaper hot path: WHERE released_at IS NULL AND expires_at < cutoff.
+  @@index([releasedAt, expiresAt])
+  @@index([workerId, releasedAt])
+  @@map("worker_lease")
+}
+
+// ---------------------------------------------------------------------------
+// Events, outbox, idempotency, dead letters
+// ---------------------------------------------------------------------------
+
+/// Append-only execution history. Never updated, never deleted by the application.
+model ExecutionEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  workflowRunId String   @db.Uuid
+  /// Monotonic within a run. A reconnecting SSE client sends its last seq and receives
+  /// exactly the events it missed.
+  seq           Int
+  type          String
+  taskRunId     String?  @db.Uuid
+  nodeKey       String?
+  workerId      String?
+  attemptNumber Int?
+  traceId       String?
+  message       String?
+  payload       Json?
+  occurredAt    DateTime @default(now())
+
+  run WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowRunId, seq])
+  @@index([workflowRunId, occurredAt])
+  @@index([type, occurredAt(sort: Desc)])
+  @@index([occurredAt(sort: Desc)])
+  @@map("execution_event")
+}
+
+/// Transactional outbox.
+///
+/// Any state change that must produce an asynchronous effect writes its intent here in
+/// the *same* transaction. The publisher then moves rows to Redis. This closes the
+/// window where a commit succeeds and the subsequent publish is lost to a crash —
+/// see docs/adr/003-transactional-outbox.md.
+model OutboxEvent {
+  id            String          @id @default(uuid()) @db.Uuid
+  type          OutboxEventType
+  aggregateType String
+  aggregateId   String
+  payload       Json
+  status        OutboxStatus    @default(PENDING)
+  attempts      Int             @default(0)
+  /// Publisher retries with backoff by pushing this forward.
+  availableAt   DateTime        @default(now())
+  lastError     String?
+  createdAt     DateTime        @default(now())
+  publishedAt   DateTime?
+
+  /// Publisher hot path: WHERE status = 'PENDING' AND available_at <= now()
+  /// ORDER BY created_at FOR UPDATE SKIP LOCKED.
+  @@index([status, availableAt, createdAt])
+  @@index([aggregateId])
+  @@index([status, createdAt])
+  @@map("outbox_event")
+}
+
+/// Caller-scoped deduplication for non-idempotent API operations.
+model IdempotencyRecord {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// e.g. "run:trigger:order-fulfilment"
+  scope        String
+  key          String
+  /// Hash of the request body. A key reused with a *different* body is a client bug
+  /// and is rejected with 409 rather than silently returning the wrong resource.
+  requestHash  String
+  resourceType String
+  resourceId   String
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@unique([scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_record")
+}
+
+/// A task that exhausted its retry budget, parked for a human.
+model DeadLetter {
+  id            String           @id @default(uuid()) @db.Uuid
+  workflowRunId String           @db.Uuid
+  taskRunId     String           @unique @db.Uuid
+  workflowKey   String
+  nodeKey       String
+  type          String
+  attempts      Int
+  errorCode     String?
+  errorMessage  String
+  input         Json?
+  lastOutput    Json?
+  status        DeadLetterStatus @default(OPEN)
+  createdAt     DateTime         @default(now())
+  resolvedAt    DateTime?
+  resolvedBy    String?
+  replayRunId   String?          @db.Uuid
+
+  run  WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  task TaskRun     @relation(fields: [taskRunId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([workflowKey, status])
+  @@map("dead_letter")
+}

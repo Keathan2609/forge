@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: forge
+
+# Applied to every resource, so `kubectl get all -l app.kubernetes.io/part-of=forge`
+# returns the whole platform.
+commonLabels:
+  app.kubernetes.io/part-of: forge
+  app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - namespace.yaml
+  - config.yaml
+  - postgres.yaml
+  - redis.yaml
+  - migrate-job.yaml
+  - api.yaml
+  - scheduler.yaml
+  - worker.yaml
+  - web.yaml
+
+images:
+  - name: forge/api
+    newTag: latest
+  - name: forge/worker
+    newTag: latest
+  - name: forge/scheduler
+    newTag: latest
+  - name: forge/web
+    newTag: latest
+  - name: forge/migrator
+    newTag: latest

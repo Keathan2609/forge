@@ -1,0 +1,275 @@
+{
+  "key": "deployment-pipeline",
+  "name": "Deployment Pipeline",
+  "description": "Sequential build, test and deploy chain with a conditional production gate. Demonstrates ordering and failure propagation.",
+  "timeoutMs": 900000,
+  "defaultRetryPolicy": {
+    "maxAttempts": 3,
+    "initialDelayMs": 1000,
+    "maxDelayMs": 60000,
+    "multiplier": 2,
+    "jitter": true,
+    "nonRetryableErrors": []
+  },
+  "inputSchema": {
+    "branch": "string — git branch being deployed",
+    "commit": "string — commit sha"
+  },
+  "output": {
+    "deployed": {
+      "from": "$.tasks.deploy-production.output"
+    },
+    "stagingUrl": {
+      "from": "$.tasks.deploy-staging.output.url"
+    }
+  },
+  "nodes": [
+    {
+      "key": "validate",
+      "name": "Validate",
+      "type": "validate",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "required": ["branch", "commit"]
+      },
+      "input": {
+        "payload": {
+          "from": "$.input"
+        }
+      },
+      "metadata": {},
+      "description": "Reject the run immediately if the trigger payload is incomplete.",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "key": "build",
+      "name": "Build",
+      "type": "delay",
+      "queue": "default",
+      "timeoutMs": 60000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 1200
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Compile the artifact.",
+      "position": {
+        "x": 260,
+        "y": 0
+      }
+    },
+    {
+      "key": "test",
+      "name": "Test",
+      "type": "delay",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 900
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Run the test suite.",
+      "position": {
+        "x": 520,
+        "y": 0
+      }
+    },
+    {
+      "key": "security-check",
+      "name": "Security Check",
+      "type": "delay",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 700
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Dependency and container scan.",
+      "position": {
+        "x": 780,
+        "y": 0
+      }
+    },
+    {
+      "key": "package",
+      "name": "Package",
+      "type": "delay",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 600
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Build and push the image.",
+      "position": {
+        "x": 1040,
+        "y": 0
+      }
+    },
+    {
+      "key": "deploy-staging",
+      "name": "Deploy Staging",
+      "type": "http.echo",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "latencyMs": 500,
+        "status": 200,
+        "body": {
+          "url": "https://staging.example.internal"
+        }
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Roll out to staging.",
+      "position": {
+        "x": 1300,
+        "y": 0
+      }
+    },
+    {
+      "key": "smoke-test",
+      "name": "Smoke Test",
+      "type": "delay",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 500,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 500
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Verify staging responds correctly.",
+      "position": {
+        "x": 1560,
+        "y": 0
+      }
+    },
+    {
+      "key": "deploy-production",
+      "name": "Deploy Production",
+      "type": "http.echo",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "latencyMs": 800,
+        "status": 200,
+        "body": {
+          "url": "https://example.internal"
+        }
+      },
+      "input": {},
+      "metadata": {},
+      "condition": "$.input.branch == 'main'",
+      "description": "Production rollout — only on main.",
+      "position": {
+        "x": 1820,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "validate",
+      "to": "build"
+    },
+    {
+      "from": "build",
+      "to": "test"
+    },
+    {
+      "from": "test",
+      "to": "security-check"
+    },
+    {
+      "from": "security-check",
+      "to": "package"
+    },
+    {
+      "from": "package",
+      "to": "deploy-staging"
+    },
+    {
+      "from": "deploy-staging",
+      "to": "smoke-test"
+    },
+    {
+      "from": "smoke-test",
+      "to": "deploy-production"
+    }
+  ],
+  "metadata": {
+    "category": "ci-cd",
+    "demonstrates": "sequential execution, conditional gate"
+  }
+}

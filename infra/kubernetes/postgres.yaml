@@ -1,0 +1,77 @@
+# Single-replica PostgreSQL for evaluation.
+#
+# NOT production: no replication, no backups, no PITR, no connection pooler. See
+# README.md — production means a managed service or an operator such as CloudNativePG.
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-postgres
+  namespace: forge
+  labels: { app.kubernetes.io/component: postgres, app.kubernetes.io/part-of: forge }
+spec:
+  clusterIP: None
+  selector: { app.kubernetes.io/component: postgres }
+  ports: [{ port: 5432, targetPort: 5432, name: postgres }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: forge-postgres
+  namespace: forge
+  labels: { app.kubernetes.io/component: postgres, app.kubernetes.io/part-of: forge }
+spec:
+  serviceName: forge-postgres
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/component: postgres }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: postgres
+        app.kubernetes.io/part-of: forge
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          args:
+            # Sized for the worker fleet: each replica holds a small pool, and the
+            # control plane holds one connection per loop.
+            ['-c', 'max_connections=200', '-c', 'shared_buffers=512MB']
+          env:
+            - name: POSTGRES_USER
+              value: forge
+            - name: POSTGRES_DB
+              value: forge
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: forge-secrets, key: POSTGRES_PASSWORD }
+            # The default data directory is the volume mount point itself, which fails
+            # when the volume has a lost+found directory.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports: [{ containerPort: 5432, name: postgres }]
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: '2', memory: 2Gi }
+          readinessProbe:
+            exec: { command: ['pg_isready', '-U', 'forge'] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec: { command: ['pg_isready', '-U', 'forge'] }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ['ALL'] }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 20Gi } }

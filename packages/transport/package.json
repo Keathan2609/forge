@@ -1,0 +1,28 @@
+{
+  "name": "@forge/transport",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Redis transport: work queues and pub/sub fan-out. Shared by the API, worker and control plane. Never a source of truth.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@forge/contracts": "workspace:*",
+    "@forge/logger": "workspace:*",
+    "ioredis": "^5.4.2"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

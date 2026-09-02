@@ -1,0 +1,197 @@
+{
+  "key": "order-fulfilment",
+  "name": "Order Fulfilment",
+  "description": "Validates an order, then reserves inventory and authorises payment in parallel before shipping. Demonstrates fan-out and fan-in.",
+  "timeoutMs": 600000,
+  "defaultRetryPolicy": {
+    "maxAttempts": 3,
+    "initialDelayMs": 1000,
+    "maxDelayMs": 60000,
+    "multiplier": 2,
+    "jitter": true,
+    "nonRetryableErrors": []
+  },
+  "inputSchema": {
+    "orderId": "string",
+    "amount": "number — order total in minor units",
+    "items": "array — line items"
+  },
+  "output": {
+    "orderId": {
+      "from": "$.input.orderId"
+    },
+    "shipmentId": {
+      "from": "$.tasks.prepare-shipment.output.result.shipmentId"
+    }
+  },
+  "nodes": [
+    {
+      "key": "validate-order",
+      "name": "Validate Order",
+      "type": "validate",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "required": ["orderId", "amount"]
+      },
+      "input": {
+        "payload": {
+          "from": "$.input"
+        }
+      },
+      "metadata": {},
+      "description": "Structural validation of the order payload.",
+      "position": {
+        "x": 0,
+        "y": 130
+      }
+    },
+    {
+      "key": "reserve-inventory",
+      "name": "Reserve Inventory",
+      "type": "delay",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "durationMs": 800
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Hold stock for the order.",
+      "position": {
+        "x": 260,
+        "y": 0
+      }
+    },
+    {
+      "key": "authorise-payment",
+      "name": "Authorise Payment",
+      "type": "http.echo",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 4,
+        "initialDelayMs": 500,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": ["HTTP_402", "HTTP_400"]
+      },
+      "config": {
+        "latencyMs": 600,
+        "status": 200,
+        "body": {
+          "authorised": true
+        }
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Authorise the customer payment method.",
+      "position": {
+        "x": 260,
+        "y": 260
+      }
+    },
+    {
+      "key": "prepare-shipment",
+      "name": "Prepare Shipment",
+      "type": "transform",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {},
+      "input": {
+        "source": {
+          "from": "$.input"
+        },
+        "mapping": {
+          "value": {
+            "shipmentId": "orderId",
+            "total": "amount"
+          }
+        }
+      },
+      "metadata": {},
+      "description": "Join point: combines the inventory hold and the payment authorisation.",
+      "position": {
+        "x": 520,
+        "y": 130
+      }
+    },
+    {
+      "key": "send-confirmation",
+      "name": "Send Confirmation",
+      "type": "http.echo",
+      "queue": "default",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 5,
+        "initialDelayMs": 250,
+        "maxDelayMs": 60000,
+        "multiplier": 2,
+        "jitter": true,
+        "nonRetryableErrors": []
+      },
+      "config": {
+        "latencyMs": 300,
+        "status": 200
+      },
+      "input": {},
+      "metadata": {},
+      "description": "Notify the customer.",
+      "position": {
+        "x": 780,
+        "y": 130
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "validate-order",
+      "to": "reserve-inventory"
+    },
+    {
+      "from": "validate-order",
+      "to": "authorise-payment"
+    },
+    {
+      "from": "reserve-inventory",
+      "to": "prepare-shipment"
+    },
+    {
+      "from": "authorise-payment",
+      "to": "prepare-shipment"
+    },
+    {
+      "from": "prepare-shipment",
+      "to": "send-confirmation"
+    }
+  ],
+  "metadata": {
+    "category": "commerce",
+    "demonstrates": "fan-out, fan-in, non-retryable errors"
+  }
+}

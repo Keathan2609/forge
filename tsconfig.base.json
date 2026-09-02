@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": false,
+    // Deliberately off. `incremental` keeps build state in a `.tsbuildinfo` that sits
+    // *outside* `outDir`, so anything that removes `dist` — `pnpm clean`, a Docker build
+    // ignoring `dist`, turbo restoring a cache — leaves tsc convinced the output is still
+    // current. It then emits nothing, exits 0, and every dependent package fails to
+    // resolve types from a package that "built successfully". Turborepo is already the
+    // build cache here; a second cache that can desync from its own artifacts is a net
+    // loss. These packages compile in seconds from cold.
+    "incremental": false,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "exactOptionalPropertyTypes": false,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": false
+  },
+  "exclude": ["node_modules", "dist", ".next"]
+}

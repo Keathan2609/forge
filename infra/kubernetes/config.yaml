@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forge-config
+  namespace: forge
+data:
+  NODE_ENV: production
+  FORGE_LOG_LEVEL: info
+
+  # Redis is transport only; PostgreSQL is the source of truth.
+  REDIS_URL: redis://forge-redis:6379
+
+  # --- API ---
+  FORGE_API_PORT: '4000'
+  FORGE_CORS_ORIGIN: http://forge-web:3000
+  FORGE_AUTH_ENABLED: 'true'
+
+  # --- Worker ---
+  FORGE_WORKER_QUEUES: default,media,deploy
+  FORGE_WORKER_CAPABILITIES: noop,delay,compute,http.echo,transform,validate
+  FORGE_WORKER_CONCURRENCY: '8'
+  FORGE_WORKER_LEASE_TTL_MS: '30000'
+  FORGE_WORKER_HEARTBEAT_MS: '5000'
+  FORGE_WORKER_SHUTDOWN_GRACE_MS: '45000'
+  FORGE_WORKER_METRICS_PORT: '9101'
+
+  # --- Control plane ---
+  FORGE_SCHEDULER_METRICS_PORT: '9102'
+  FORGE_OUTBOX_POLL_MS: '250'
+  FORGE_REAPER_POLL_MS: '2000'
+
+  # Failure injection must never be reachable in a real deployment. The API refuses to
+  # start with FORGE_DEMO_MODE=true when NODE_ENV=production, so this is belt and braces.
+  FORGE_DEMO_MODE: 'false'
+
+  # --- Observability ---
+  OTEL_ENABLED: 'true'
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_SERVICE_NAMESPACE: forge
+---
+# PLACEHOLDER ONLY.
+#
+# Committed so `kubectl apply -k` works out of the box for evaluation. Replace this with
+# External Secrets Operator, Sealed Secrets, or your cloud provider's secret manager
+# before any real deployment. Never commit real credentials.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: forge-secrets
+  namespace: forge
+  annotations:
+    forge.dev/warning: 'placeholder credentials for evaluation only — replace before production use'
+type: Opaque
+stringData:
+  DATABASE_URL: postgresql://forge:CHANGE_ME@forge-postgres:5432/forge?schema=public
+  POSTGRES_PASSWORD: CHANGE_ME
+  FORGE_API_KEY: CHANGE_ME_TO_A_LONG_RANDOM_STRING

@@ -1,0 +1,177 @@
+# FORGE — continuous integration.
+#
+# Three jobs, split by what they need rather than by what they do:
+#
+#   quality      lint, typecheck, unit tests, production build — no services, fast
+#   integration  the same code against real PostgreSQL and Redis
+#   docker       proves every runtime image actually builds
+#
+# Integration tests are not merged into `quality` because they are an order of magnitude
+# slower and need service containers; keeping them separate means a lint error is
+# reported in ~2 minutes rather than ~8.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A new push supersedes the previous run for the same ref.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '10.34.5'
+  # Turborepo prints a warning without this and CI logs are noisy enough.
+  TURBO_TELEMETRY_DISABLED: '1'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  quality:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          # Caches the pnpm store keyed on the lockfile.
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Prisma Client is a generated artifact: nothing that imports @forge/database
+      # typechecks until it exists.
+      - name: Generate Prisma Client
+        run: pnpm --filter @forge/database exec prisma generate
+
+      - name: Build packages
+        run: pnpm turbo run build --filter=./packages/*
+
+      - name: Lint
+        run: pnpm exec eslint packages apps
+
+      - name: Format check
+        run: pnpm exec prettier --check "**/*.{ts,tsx,js,mjs,json,md,yml,yaml}"
+
+      - name: Typecheck
+        run: pnpm turbo run typecheck
+
+      - name: Unit tests
+        run: pnpm turbo run test
+
+      - name: Build applications
+        run: pnpm turbo run build
+        env:
+          NEXT_PUBLIC_FORGE_API_URL: http://localhost:4000
+
+  integration:
+    name: Integration (PostgreSQL + Redis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: forge
+          POSTGRES_PASSWORD: forge
+          POSTGRES_DB: forge_test
+        ports:
+          - 5432:5432
+        # Without a healthcheck the job races the database's first-boot initialisation.
+        options: >-
+          --health-cmd "pg_isready -U forge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      TEST_DATABASE_URL: postgresql://forge:forge@localhost:5432/forge_test?schema=public
+      TEST_REDIS_URL: redis://localhost:6379/1
+      DATABASE_URL: postgresql://forge:forge@localhost:5432/forge_test?schema=public
+      REDIS_URL: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @forge/database exec prisma generate
+
+      - name: Apply migrations
+        run: pnpm --filter @forge/database exec prisma migrate deploy
+
+      - name: Build packages
+        run: pnpm turbo run build --filter=./packages/*
+
+      # These are the tests that exercise leasing, recovery, idempotency and the outbox
+      # against real infrastructure — the behaviour the project is actually about.
+      # `--concurrency=1`: the suites share one test database and one Redis index, and
+      # each asserts on exact state. In parallel, one suite's control plane advances the
+      # other's runs and claims its tasks.
+      - name: Integration tests
+        run: pnpm turbo run test:integration --concurrency=1
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # No point building images for a tree that does not lint or typecheck.
+    needs: quality
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [api, worker, scheduler, web, migrator]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.target }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile
+          target: ${{ matrix.target }}
+          # Built to verify the Dockerfile, not published — this repository has no
+          # registry configured, and claiming otherwise would be theatre.
+          push: false
+          load: false
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}

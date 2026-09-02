@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-api
+  namespace: forge
+  labels: { app.kubernetes.io/component: api, app.kubernetes.io/part-of: forge }
+  annotations:
+    prometheus.io/scrape: 'true'
+    prometheus.io/path: /metrics
+    prometheus.io/port: '4000'
+spec:
+  selector: { app.kubernetes.io/component: api }
+  ports: [{ port: 4000, targetPort: 4000, name: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forge-api
+  namespace: forge
+  labels: { app.kubernetes.io/component: api, app.kubernetes.io/part-of: forge }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app.kubernetes.io/component: api }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: forge
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000 }
+      # Spread replicas across nodes so losing one node does not take the API down.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app.kubernetes.io/component: api }
+      containers:
+        - name: api
+          image: forge/api:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 4000, name: http }]
+          envFrom:
+            - configMapRef: { name: forge-config }
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: forge-secrets, key: DATABASE_URL }
+            - name: FORGE_API_KEY
+              valueFrom:
+                secretKeyRef: { name: forge-secrets, key: FORGE_API_KEY }
+          resources:
+            requests: { cpu: 200m, memory: 384Mi }
+            limits: { cpu: '1', memory: 768Mi }
+          # Liveness checks only that the process is alive. Probing dependencies here
+          # would restart every replica during a brief database blip, turning a
+          # recoverable incident into an outage.
+          livenessProbe:
+            httpGet: { path: /health, port: 4000 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          # Readiness checks PostgreSQL and Redis: a replica that cannot reach them
+          # should leave the load balancer, not restart.
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 4000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          startupProbe:
+            httpGet: { path: /health, port: 4000 }
+            failureThreshold: 30
+            periodSeconds: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ['ALL'] }
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: forge-api
+  namespace: forge
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app.kubernetes.io/component: api }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: forge-api
+  namespace: forge
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: forge-api }
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }

@@ -1,0 +1,29 @@
+{
+  "name": "@forge/engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure workflow engine: DAG validation, dependency resolution, state machine, retry maths and safe condition evaluation. No I/O.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@forge/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8",
+    "@forge/testing": "workspace:*"
+  }
+}

@@ -1,0 +1,229 @@
+/*
+ * Task node.
+ *
+ * The visual grammar: a left accent bar carries the state colour, the border thickens
+ * when selected, and a progress strip appears only while a task is actually running.
+ * State is never encoded by colour alone — every node shows its state as a word, and the
+ * accent bar's *pattern* (solid / striped / dashed) differs by family so the graph stays
+ * readable without colour.
+ */
+
+.node {
+  position: relative;
+  width: 196px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  font-family: var(--font-sans);
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease);
+  cursor: pointer;
+}
+
+.node:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+}
+
+.body {
+  padding: var(--space-3) var(--space-3) var(--space-3) calc(var(--space-3) + 3px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.key {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attempt {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.type {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.state {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.duration {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.worker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-disabled);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.error {
+  font-size: 10px;
+  color: var(--state-error);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* An indeterminate strip: it says "this is moving", not "this is 40% done". */
+.activity {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  overflow: hidden;
+  background: var(--border-subtle);
+}
+
+.activityBar {
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: var(--state-running);
+  animation: sweep 1.3s var(--ease) infinite;
+}
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+/* --- state variants ------------------------------------------------------ */
+.succeeded .accent {
+  background: var(--state-success);
+}
+.succeeded .state {
+  color: var(--state-success);
+}
+
+.running .accent {
+  background: var(--state-running);
+}
+.running .state {
+  color: var(--state-running);
+}
+.running {
+  border-color: color-mix(in srgb, var(--state-running) 40%, var(--border-default));
+}
+
+.failed .accent {
+  background: var(--state-error);
+}
+.failed .state {
+  color: var(--state-error);
+}
+.failed {
+  border-color: color-mix(in srgb, var(--state-error) 40%, var(--border-default));
+}
+
+/* Striped accent: distinguishes "retrying" from "running" without relying on hue. */
+.retrying .accent {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--state-warn),
+    var(--state-warn) 3px,
+    transparent 3px,
+    transparent 6px
+  );
+}
+.retrying .state {
+  color: var(--state-warn);
+}
+.retrying {
+  border-color: color-mix(in srgb, var(--state-warn) 40%, var(--border-default));
+}
+
+.queued .accent {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--state-running),
+    var(--state-running) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+.queued .state {
+  color: var(--state-running);
+}
+
+.idle .accent {
+  background: var(--border-strong);
+}
+.idle .state {
+  color: var(--text-tertiary);
+}
+.idle {
+  opacity: 0.72;
+}
+
+/* Skipped is deliberately faint — it did not run, and it is not a problem. */
+.skipped {
+  opacity: 0.45;
+  border-style: dashed;
+}
+.skipped .accent {
+  background: var(--border-default);
+}
+.skipped .state {
+  color: var(--text-disabled);
+}

@@ -1,0 +1,31 @@
+.canvas {
+  width: 100%;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  position: relative;
+}
+
+.canvas :global(.react-flow__node) {
+  /* The node component draws its own chrome; the wrapper must not add any. */
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  width: auto;
+}
+
+.canvas :global(.react-flow__node.selected) {
+  box-shadow: none;
+}
+
+.canvas :global(.react-flow__edge-text) {
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.canvas :global(.react-flow__edge-textbg) {
+  fill: var(--bg-base);
+}

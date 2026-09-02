@@ -1,0 +1,90 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--space-4);
+}
+
+.workerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.loadRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.loadLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* Discrete slots rather than a continuous bar: a worker has an integer number of
+   concurrency slots, and showing them individually makes "3 of 4 busy" literal. */
+.loadBar {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+}
+
+.loadSlot {
+  flex: 1;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--border-subtle);
+  border: 1px solid var(--border-default);
+}
+
+.loadSlotActive {
+  background: var(--state-running);
+  border-color: var(--state-running);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--state-running) 55%, transparent);
+}
+
+.loadPercent {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  min-width: 34px;
+  text-align: right;
+}
+
+.currentTasks {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.currentLabel {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-2);
+}
+
+.currentTask {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.currentTask:hover {
+  background: var(--bg-hover);
+}
+
+.currentNode {
+  font-family: var(--font-mono);
+  color: var(--state-running);
+}

@@ -1,0 +1,12 @@
+# Line endings are normalised to LF in the repository, on every platform.
+#
+# Prettier defaults to `endOfLine: "lf"`, so a file saved with CRLF on Windows fails
+# `prettier --check` in CI on every single line while looking identical in an editor.
+# Normalising here fixes the cause rather than the symptom.
+* text=auto eol=lf
+
+# Binary and generated-lockfile handling.
+*.png binary
+*.jpg binary
+*.ico binary
+pnpm-lock.yaml linguist-generated=true

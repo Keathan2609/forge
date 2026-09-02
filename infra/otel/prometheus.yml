@@ -1,0 +1,41 @@
+# Prometheus scrape configuration for the local FORGE stack.
+#
+# Every runtime exposes /metrics on its own port. Worker replicas are discovered by
+# Docker's internal DNS: `tasks.worker` resolves to every replica's IP, so scaling
+# `worker` up does not require editing this file.
+
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: forge-local
+
+scrape_configs:
+  - job_name: forge-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api:4000']
+        labels: { service: api }
+
+  - job_name: forge-scheduler
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['scheduler:9102']
+        labels: { service: scheduler }
+
+  - job_name: forge-workers
+    metrics_path: /metrics
+    # DNS service discovery: returns one target per worker replica.
+    dns_sd_configs:
+      - names: ['tasks.worker']
+        type: A
+        port: 9101
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: service
+        replacement: worker
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

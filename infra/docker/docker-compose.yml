@@ -1,0 +1,245 @@
+# FORGE — local environment.
+#
+#   docker compose -f infra/docker/docker-compose.yml up -d          # everything
+#   docker compose -f infra/docker/docker-compose.yml up -d postgres redis jaeger prometheus
+#
+# Ports are deliberately offset from the defaults (5435, 6381) so this stack can run
+# alongside an existing local PostgreSQL or Redis without a fight.
+
+name: forge
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: forge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: forge
+      POSTGRES_DB: forge
+      # Deterministic collation keeps index behaviour identical across machines.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    command:
+      - postgres
+      # The control plane opens a connection per loop plus one per worker; the default
+      # of 100 is tight once you scale worker replicas.
+      - '-c'
+      - 'max_connections=200'
+      - '-c'
+      - 'shared_buffers=256MB'
+      # Log anything slower than 200ms so N+1s show up during development.
+      - '-c'
+      - 'log_min_duration_statement=200'
+    ports:
+      - '5435:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U forge -d forge']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    networks: [forge]
+
+  redis:
+    image: redis:7-alpine
+    container_name: forge-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - '--appendonly'
+      - 'yes'
+      # Redis is transport, not the source of truth — but losing the queue still costs
+      # latency while the outbox and sweepers rebuild it, so AOF is cheap insurance.
+      - '--maxmemory'
+      - '256mb'
+      - '--maxmemory-policy'
+      - 'noeviction'
+    ports:
+      - '6381:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [forge]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: forge-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'
+    ports:
+      - '16686:16686' # UI
+      - '4318:4318' # OTLP/HTTP — what the services export to
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:16686/']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [forge]
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: forge-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=6h'
+      - '--web.enable-lifecycle'
+    ports:
+      - '9090:9090'
+    volumes:
+      - ../otel/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks: [forge]
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: migrator
+    container_name: forge-migrate
+    environment:
+      DATABASE_URL: postgresql://forge:forge@postgres:5432/forge?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Runs once and exits; every other service waits for it to complete successfully.
+    restart: 'no'
+    networks: [forge]
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: api
+    container_name: forge-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://forge:forge@postgres:5432/forge?schema=public
+      REDIS_URL: redis://redis:6379
+      FORGE_API_PORT: '4000'
+      FORGE_CORS_ORIGIN: http://localhost:3000
+      FORGE_AUTH_ENABLED: 'false'
+      FORGE_DEMO_MODE: 'false'
+      FORGE_LOG_LEVEL: info
+      OTEL_ENABLED: 'true'
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    ports:
+      - '4000:4000'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://127.0.0.1:4000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    networks: [forge]
+
+  scheduler:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: scheduler
+    container_name: forge-scheduler
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://forge:forge@postgres:5432/forge?schema=public
+      REDIS_URL: redis://redis:6379
+      FORGE_LOG_LEVEL: info
+      OTEL_ENABLED: 'true'
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      FORGE_SCHEDULER_METRICS_PORT: '9102'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://127.0.0.1:9102/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    networks: [forge]
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: worker
+    restart: unless-stopped
+    # Three replicas: enough to actually observe distributed allocation in the console,
+    # and enough that killing one leaves the fleet able to recover its work.
+    deploy:
+      replicas: 3
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://forge:forge@postgres:5432/forge?schema=public
+      REDIS_URL: redis://redis:6379
+      FORGE_LOG_LEVEL: info
+      FORGE_WORKER_QUEUES: default,media,deploy
+      FORGE_WORKER_CAPABILITIES: noop,delay,compute,http.echo,transform,validate,simulate.flaky,simulate.fail,simulate.timeout,simulate.crash
+      FORGE_WORKER_CONCURRENCY: '4'
+      FORGE_WORKER_LEASE_TTL_MS: '15000'
+      FORGE_WORKER_HEARTBEAT_MS: '2000'
+      FORGE_WORKER_METRICS_PORT: '9101'
+      # Enables the simulate.* handlers used by the failure-injection demo.
+      FORGE_DEMO_MODE: 'true'
+      OTEL_ENABLED: 'true'
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [forge]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: web
+      args:
+        NEXT_PUBLIC_FORGE_API_URL: http://localhost:4000
+    container_name: forge-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Browser-facing: must be reachable from the host, not from inside the network.
+      NEXT_PUBLIC_FORGE_API_URL: http://localhost:4000
+      # Server-side rendering talks to the API over the compose network.
+      FORGE_API_INTERNAL_URL: http://api:4000
+      PORT: '3000'
+    ports:
+      - '3000:3000'
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [forge]
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  forge:
+    driver: bridge

@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-worker
+  namespace: forge
+  labels: { app.kubernetes.io/component: worker, app.kubernetes.io/part-of: forge }
+  annotations:
+    prometheus.io/scrape: 'true'
+    prometheus.io/path: /metrics
+    prometheus.io/port: '9101'
+spec:
+  clusterIP: None
+  selector: { app.kubernetes.io/component: worker }
+  ports: [{ port: 9101, targetPort: 9101, name: metrics }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forge-worker
+  namespace: forge
+  labels: { app.kubernetes.io/component: worker, app.kubernetes.io/part-of: forge }
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app.kubernetes.io/component: worker }
+  strategy:
+    type: RollingUpdate
+    # Surge rather than churn: bring a new worker up before removing an old one, so
+    # capacity never dips mid-deploy.
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 2 }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: forge
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000 }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app.kubernetes.io/component: worker }
+      containers:
+        - name: worker
+          image: forge/worker:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 9101, name: metrics }]
+          envFrom:
+            - configMapRef: { name: forge-config }
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: forge-secrets, key: DATABASE_URL }
+            # A stable, human-meaningful name in the fleet view.
+            - name: FORGE_WORKER_NAME
+              valueFrom:
+                fieldRef: { fieldPath: metadata.name }
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: '2', memory: 1Gi }
+          livenessProbe:
+            httpGet: { path: /health, port: 9101 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /health, port: 9101 }
+            initialDelaySeconds: 8
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ['ALL'] }
+      # Long enough for a worker to finish in-flight tasks on SIGTERM. Whatever it
+      # cannot finish is recovered by lease expiry, so a hard kill is safe — draining
+      # simply avoids a ~30s (one lease TTL) delay per task across a rolling deploy.
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: forge-worker
+  namespace: forge
+spec:
+  # Keeps capacity available during a voluntary disruption. Involuntary loss is handled
+  # by lease recovery, not by this budget.
+  minAvailable: 2
+  selector:
+    matchLabels: { app.kubernetes.io/component: worker }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: forge-worker
+  namespace: forge
+  annotations:
+    forge.dev/note: >-
+      Scales on queue depth, not CPU. A worker blocked on a slow downstream service uses
+      almost no CPU while the queue grows, so CPU-based autoscaling would scale down at
+      exactly the moment more capacity is needed. Requires Prometheus plus
+      prometheus-adapter (or KEDA) to serve forge_queue_depth as an External metric; the
+      HPA fails open and holds its replica count if that is not installed.
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: forge-worker }
+  minReplicas: 3
+  maxReplicas: 30
+  metrics:
+    - type: External
+      external:
+        metric: { name: forge_queue_depth }
+        # Scale out when more than 20 tasks are queued per worker.
+        target: { type: AverageValue, averageValue: '20' }
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 80 } }
+  behavior:
+    scaleUp:
+      # React quickly to a backlog: a queue that is growing needs capacity now.
+      stabilizationWindowSeconds: 30
+      policies: [{ type: Percent, value: 100, periodSeconds: 30 }]
+    scaleDown:
+      # Scale in slowly. Removing a worker mid-task costs a lease TTL of latency, so
+      # being wrong in this direction is more expensive than being slow.
+      stabilizationWindowSeconds: 300
+      policies: [{ type: Pods, value: 1, periodSeconds: 60 }]
