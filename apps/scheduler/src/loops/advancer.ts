@@ -1,7 +1,13 @@
 import { type ExecutionEventType, KEYS, QUEUES, WorkflowRunState } from '@forge/contracts';
 import { advance, listEvents, type PrismaClient } from '@forge/database';
 import type { Logger } from '@forge/logger';
-import { ATTR, withExtractedContext, withSpan, type ForgeMetrics } from '@forge/observability';
+import {
+  ATTR,
+  injectTraceContext,
+  withExtractedContext,
+  withSpan,
+  type ForgeMetrics,
+} from '@forge/observability';
 import type { Transport } from '@forge/transport';
 
 /**
@@ -52,7 +58,14 @@ export function createAdvancer(options: AdvancerOptions) {
 
           const startedAt = process.hrtime.bigint();
           try {
-            const result = await advance(prisma, message.workflowRunId);
+            // Re-inject the *current* context, which is the `run.advance` span above.
+            // `advance` writes this onto every task.dispatch row it emits, so the worker
+            // that eventually claims the task continues this trace instead of starting a
+            // new one. Dropping it here is invisible in tests — the run still executes
+            // correctly — and shows up only as task spans orphaned from their trigger.
+            const result = await advance(prisma, message.workflowRunId, {
+              trace: injectTraceContext(),
+            });
             metrics.advanceDuration.observe(
               Number(process.hrtime.bigint() - startedAt) / 1_000_000_000,
             );
