@@ -40,6 +40,15 @@ test-results/
 blob-report/
 .playwright/
 
+# local tooling
+#
+# Editor and CLI tools drop per-developer configuration and session state into the
+# working tree. None of it describes FORGE, and none of it should reach the repository.
+.claude/
+CLAUDE.local.md
+.aider*
+.cursor/
+
 # editors / os
 .DS_Store
 Thumbs.db

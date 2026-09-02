@@ -4,6 +4,15 @@
   "private": true,
   "description": "FORGE — a self-hosted distributed workflow orchestration engine with durable execution, worker leasing and a transactional outbox.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Keathan2609/forge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Keathan2609/forge/issues"
+  },
+  "homepage": "https://github.com/Keathan2609/forge#readme",
+  "author": "Keathan Naidoo (https://github.com/Keathan2609)",
   "engines": {
     "node": ">=20.11.0",
     "pnpm": ">=10.0.0"

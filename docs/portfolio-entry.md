@@ -297,10 +297,9 @@ Worth stating, because they are the first things a careful reader will look for:
 
 ## Portfolio card — short version
 
-The copy for the site. FORGE sits beside ATLAS and should not repeat its pitch: ATLAS is
-the enterprise application-architecture project; FORGE is the distributed-systems one.
-Where ATLAS shows how a large business domain is structured, FORGE shows what happens when
-the machines running it fail.
+Condensed copy for a portfolio listing. FORGE's subject is distributed systems and
+reliability rather than application architecture: not how a business domain is
+structured, but what happens to the work in flight when the machines running it fail.
 
 **Name**
 FORGE

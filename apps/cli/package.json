@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "description": "forge — command line interface for the FORGE orchestration engine.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Keathan2609/forge.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://github.com/Keathan2609/forge#readme",
   "main": "dist/index.js",
   "bin": {
     "forge": "dist/bin.js"

@@ -2,6 +2,8 @@
 
 # FORGE
 
+### Distributed Workflow Orchestration Engine
+
 **Distributed workflows. Built to survive failure.**
 
 A self-hosted workflow orchestration engine with durable execution, worker leasing and a
@@ -14,9 +16,10 @@ when parts of it die.
 
 </div>
 
-> **Screenshots** — `docs/screenshots/` is empty in this checkout. The console screens
-> listed in [Screenshots](#screenshots) are reproducible in about two minutes by
-> following [Local development](#local-development); nothing there is mocked.
+> **Screenshots** — none are committed. The console screens listed in
+> [Screenshots](#screenshots) are reproducible in about two minutes by following
+> [Local development](#local-development); every figure in them comes from PostgreSQL,
+> so nothing there is mocked.
 
 ---
 

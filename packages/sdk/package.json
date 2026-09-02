@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "description": "Type-safe TypeScript client for FORGE: define workflows, trigger runs, register task handlers and await completion.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Keathan2609/forge.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/Keathan2609/forge#readme",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
