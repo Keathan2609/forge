@@ -224,19 +224,32 @@ the test suites, and the documentation.
 
 **Verified working**, not merely written:
 
-- 370 unit tests across every package (190 of them in the pure engine), 13
-  control-plane integration tests against real PostgreSQL and Redis, and 13 Playwright
-  E2E tests driving the console against a live stack
+- 379 unit tests across every package (190 of them in the pure engine), 20 integration
+  tests against real PostgreSQL and Redis, and 13 Playwright E2E tests driving the
+  console against a live stack
 - An automated chaos script that SIGKILLs a real worker mid-task and asserts on every
   step of the recovery
 - Retries with visible exponential backoff, dead-lettering, failure propagation,
   concurrent idempotency and outbox republish — all exercised end to end
+- The whole platform running as nine containers under Docker Compose — API, control
+  plane, three worker replicas, console, PostgreSQL, Redis, Prometheus and Jaeger — with
+  every demonstration above re-verified against that stack rather than local processes
 
 **Three real bugs were found and fixed during development**, all of one shape: a component
 performed a state transition the state machine forbade, and the two test suites that
 should have caught it each verified only their own half. The fix was a declared inventory
 of every transition the runtime performs, asserted against the transition table — so that
 class of bug now fails the build.
+
+**A second batch was found by actually starting the containers.** The images had been
+built in CI but never run, and building is not evidence of running: `pnpm prune --prod`
+had been deleting the workspace symlinks packages use to resolve each other, so every
+runtime died on its first `require`; the migrator invoked `npx prisma`, which — with the
+CLI pruned away — silently downloaded a next-major release candidate from the registry
+and made the image's behaviour depend on the date it ran; Prometheus discovered workers
+through `tasks.worker`, a Docker Swarm convention that resolves to nothing under Compose,
+which had quietly hidden every worker-side metric. The lesson is recorded here because it
+is the useful part: a green build pipeline proved less than one `docker compose up`.
 
 ## GitHub description
 
@@ -258,22 +271,11 @@ Distributed Systems · Backend Architecture · Fault Tolerance · Concurrency ·
 Event-Driven Architecture · State Machines · Observability · API Design ·
 Database Design · Full Stack · Infrastructure
 
-## Suggested screenshot order
+## Screenshots
 
-1. **Live execution** (`/console/runs/:id`) — the DAG mid-run with a node executing, the
-   timeline beside it, and the task detail panel open. The single strongest image.
-2. **Crash recovery** — the same view for a `crash-recovery-demo` run, showing
-   `LEASE_EXPIRED` → `TASK_RECOVERED` → `TASK_STARTED` on a different worker.
-3. **Chaos script output** — the terminal transcript of `pnpm demo:chaos`, with each step
-   asserted.
-4. **Retry sequence** — a `resilience-demo` timeline showing 1s → 2s backoff and a
-   dead-letter.
-5. **Dead-letter queue** — an entry expanded to show every attempt with its worker.
-6. **Workflow editor** — mid-edit, with live validation from the engine.
-7. **Worker fleet** — three workers with slot allocation visible.
-8. **Overview** — throughput, success rate and outbox lag.
-9. **Jaeger trace** — one trace spanning API → outbox → queue → worker.
-10. **Architecture diagram** — from the README.
+The capture plan lives in [portfolio-assets.md](portfolio-assets.md): ten shots, each with
+the exact route or command, the state that must be on screen, what it demonstrates, the
+viewport to use, and what to hide first.
 
 ## Honest caveats
 
@@ -290,3 +292,62 @@ Worth stating, because they are the first things a careful reader will look for:
 - **No performance benchmarks are claimed.** No load testing was carried out, so there are
   no throughput or latency figures to quote. The architectural bottleneck (PostgreSQL) is
   identified in the system design, along with what would be done next.
+
+---
+
+## Portfolio card — short version
+
+The copy for the site. FORGE sits beside ATLAS and should not repeat its pitch: ATLAS is
+the enterprise application-architecture project; FORGE is the distributed-systems one.
+Where ATLAS shows how a large business domain is structured, FORGE shows what happens when
+the machines running it fail.
+
+**Name**
+FORGE
+
+**Discipline**
+Software Engineering
+
+**Type**
+Distributed Systems / Infrastructure
+
+**One-liner**
+A distributed workflow orchestration engine that keeps executing correctly when its own
+workers are killed mid-task.
+
+**Short description**
+FORGE runs workflows defined as dependency graphs across a fleet of independent worker
+processes, with all execution state held in PostgreSQL and Redis used only as transport.
+Every attempt is held by a time-bounded lease, so a worker that dies mid-task has its work
+reclaimed and finished by another — proven by an automated chaos script that SIGKILLs a
+real worker and asserts on each step of the recovery.
+
+**Technical highlights**
+
+- **Durable execution.** PostgreSQL is the sole source of truth; Redis carries messages
+  and nothing else. Wiping Redis costs latency, never correctness.
+- **Crash recovery through leases.** Heartbeat-renewed leases, a reaper that reclaims
+  expired ones, and separate counters for infrastructure recovery and application failure
+  — so a rescheduled pod does not spend a task's retry budget.
+- **Transactional outbox.** State changes and the messages announcing them commit in one
+  transaction, claimed with `FOR UPDATE SKIP LOCKED` and published before being marked.
+- **Honest delivery semantics.** At-least-once transport, at-most-once commit per attempt
+  enforced by two unique constraints, at-least-once logical execution. No exactly-once
+  claim.
+- **Orchestration as a pure function.** `advanceRun(graph, run, tasks)` performs no I/O,
+  making fan-out, fan-in, conditional pruning and failure propagation testable without
+  infrastructure — 190 unit tests in the engine alone.
+- **Enforced state machine.** A declared inventory of every transition the runtime
+  performs, asserted against the transition table, after three production-shaped bugs of
+  exactly that kind.
+- **Distributed tracing that actually spans processes.** One trace covering API → outbox →
+  transport → worker, with the trace ID present in all three services' structured logs.
+
+**Stack**
+TypeScript · Node.js · NestJS · PostgreSQL · Prisma · Redis · Next.js · React ·
+OpenTelemetry · Jaeger · Prometheus · Docker · Kubernetes · Playwright · Vitest ·
+pnpm · Turborepo
+
+**GitHub topics**
+`distributed-systems` `workflow-engine` `orchestration` `typescript` `postgresql` `redis`
+`fault-tolerance` `transactional-outbox` `event-driven` `opentelemetry` `nestjs` `nextjs`
