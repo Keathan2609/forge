@@ -231,7 +231,7 @@ the test suites, and the documentation.
   step of the recovery
 - Retries with visible exponential backoff, dead-lettering, failure propagation,
   concurrent idempotency and outbox republish — all exercised end to end
-- The whole platform running as nine containers under Docker Compose — API, control
+- The whole platform running as ten containers under Docker Compose — API, control
   plane, three worker replicas, console, PostgreSQL, Redis, Prometheus and Jaeger — with
   every demonstration above re-verified against that stack rather than local processes
 
