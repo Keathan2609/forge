@@ -1,8 +1,8 @@
 # Prometheus scrape configuration for the local FORGE stack.
 #
 # Every runtime exposes /metrics on its own port. Worker replicas are discovered by
-# Docker's internal DNS: `tasks.worker` resolves to every replica's IP, so scaling
-# `worker` up does not require editing this file.
+# Docker's internal DNS: the service name `worker` resolves to every replica's IP, so
+# scaling `worker` up does not require editing this file.
 
 global:
   scrape_interval: 5s
@@ -26,8 +26,13 @@ scrape_configs:
   - job_name: forge-workers
     metrics_path: /metrics
     # DNS service discovery: returns one target per worker replica.
+    #
+    # The name is `worker`, not `tasks.worker`. `tasks.<service>` is a Docker *Swarm*
+    # convention; on a Compose bridge network it does not resolve at all, which left
+    # this job with zero targets and silently hid every worker-side metric —
+    # tasks started, task duration and dead letters are all incremented in the worker.
     dns_sd_configs:
-      - names: ['tasks.worker']
+      - names: ['worker']
         type: A
         port: 9101
     relabel_configs:

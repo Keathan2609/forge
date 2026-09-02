@@ -78,25 +78,46 @@ ENV NEXT_OUTPUT_STANDALONE=1
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter @forge/web build
 
-# Strip development dependencies so the runtime stages copy a lean node_modules.
-# `CI=true` is scoped to this one command: without a TTY, pnpm refuses to purge the
-# modules directory and asks for confirmation it can never receive. It is set inline
-# rather than as a stage-wide ENV so it cannot quietly alter how anything else builds.
-RUN CI=true pnpm prune --prod
+# Reduce to production dependencies.
+#
+# This is a re-install, not `pnpm prune --prod`. In a workspace, prune deletes the
+# per-package `node_modules` directories outright — including the `@forge/*` symlinks
+# that point one workspace package at another. The images still *built*, because
+# nothing resolves a module at build time; they died on the first `require` at runtime
+# with "Cannot find module '@forge/observability'". A prod install removes the same dev
+# dependencies but rebuilds the workspace links, so the graph stays intact.
+#
+# `CI=true` is scoped to this one command: without a TTY, pnpm asks for a confirmation
+# it can never receive. Inline rather than a stage-wide ENV so it cannot quietly alter
+# how anything else builds.
+# `--ignore-scripts`: the postinstall hook is `prisma generate`, and this pass has
+# just removed the Prisma CLI as a dev dependency. The client was already generated
+# in the deps stage against the same schema, so there is nothing to regenerate — and
+# without this flag the install fails on a hook it disabled the tooling for.
+RUN CI=true pnpm install --frozen-lockfile --prod --ignore-scripts
 
 # ---------------------------------------------------------------------------
 # Migrator — runs `prisma migrate deploy` once, then exits
 # ---------------------------------------------------------------------------
-FROM base AS migrator
+# Built from `deps`, not `build`: the Prisma CLI is a devDependency, so the pruned
+# node_modules the other runtimes share does not contain it. `deps` already holds the
+# full install and the schema (copied there for the postinstall), which is everything
+# `migrate deploy` needs — it reads migrations and talks to PostgreSQL, and never
+# touches the generated client. A one-shot job that exits is the right place to trade
+# image size for a dependency set that is guaranteed present.
+FROM deps AS migrator
 ENV NODE_ENV=production
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/packages/database ./packages/database
-COPY --from=build /app/package.json ./package.json
 WORKDIR /app/packages/database
+# `pnpm exec` runs the binary from node_modules/.bin. This must never be `npx`: with no
+# local Prisma to find, npx silently downloads the newest version published to the
+# registry — which is how this image once fetched a next-major release candidate that
+# had renamed the `migrate` command, turning a reproducible build into one whose
+# behaviour depended on the date it ran.
+#
 # `migrate deploy` applies committed migrations and never generates new ones — the only
 # form of migration that is safe to run automatically on startup.
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["npx", "prisma", "migrate", "deploy"]
+CMD ["pnpm", "exec", "prisma", "migrate", "deploy"]
 
 # ---------------------------------------------------------------------------
 # Shared runtime scaffolding for the Node services
@@ -115,6 +136,9 @@ FROM runtime-base AS api
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/packages ./packages
 COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
+# pnpm resolves `@forge/*` through symlinks that live here, not in the root
+# node_modules. Without this the app cannot require its own workspace packages.
+COPY --from=build --chown=node:node /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build --chown=node:node /app/apps/api/package.json ./apps/api/
 EXPOSE 4000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
@@ -128,6 +152,9 @@ FROM runtime-base AS worker
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/packages ./packages
 COPY --from=build --chown=node:node /app/apps/worker/dist ./apps/worker/dist
+# pnpm resolves `@forge/*` through symlinks that live here, not in the root
+# node_modules. Without this the app cannot require its own workspace packages.
+COPY --from=build --chown=node:node /app/apps/worker/node_modules ./apps/worker/node_modules
 COPY --from=build --chown=node:node /app/apps/worker/package.json ./apps/worker/
 EXPOSE 9101
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
@@ -144,6 +171,9 @@ FROM runtime-base AS scheduler
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/packages ./packages
 COPY --from=build --chown=node:node /app/apps/scheduler/dist ./apps/scheduler/dist
+# pnpm resolves `@forge/*` through symlinks that live here, not in the root
+# node_modules. Without this the app cannot require its own workspace packages.
+COPY --from=build --chown=node:node /app/apps/scheduler/node_modules ./apps/scheduler/node_modules
 COPY --from=build --chown=node:node /app/apps/scheduler/package.json ./apps/scheduler/
 EXPOSE 9102
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
@@ -180,6 +210,9 @@ FROM runtime-base AS cli
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/packages ./packages
 COPY --from=build --chown=node:node /app/apps/cli/dist ./apps/cli/dist
+# pnpm resolves `@forge/*` through symlinks that live here, not in the root
+# node_modules. Without this the app cannot require its own workspace packages.
+COPY --from=build --chown=node:node /app/apps/cli/node_modules ./apps/cli/node_modules
 COPY --from=build --chown=node:node /app/apps/cli/package.json ./apps/cli/
 ENTRYPOINT ["/sbin/tini", "--", "node", "apps/cli/dist/bin.js"]
 CMD ["--help"]

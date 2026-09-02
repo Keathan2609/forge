@@ -199,7 +199,7 @@ services:
       REDIS_URL: redis://redis:6379
       FORGE_LOG_LEVEL: info
       FORGE_WORKER_QUEUES: default,media,deploy
-      FORGE_WORKER_CAPABILITIES: noop,delay,compute,http.echo,transform,validate,simulate.flaky,simulate.fail,simulate.timeout,simulate.crash
+      FORGE_WORKER_CAPABILITIES: noop,delay,compute,http.echo,transform,validate,simulate.flaky,simulate.fail,simulate.timeout,simulate.crash,simulate.slow
       FORGE_WORKER_CONCURRENCY: '4'
       FORGE_WORKER_LEASE_TTL_MS: '15000'
       FORGE_WORKER_HEARTBEAT_MS: '2000'
