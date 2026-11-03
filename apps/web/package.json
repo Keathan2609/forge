@@ -17,7 +17,7 @@
     "@forge/contracts": "workspace:*",
     "@forge/sdk": "workspace:*",
     "@xyflow/react": "^12.4.2",
-    "next": "^15.1.6",
+    "next": "^15.5.28",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
